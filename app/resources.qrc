@@ -1,0 +1,20 @@
+<RCC>
+    <qresource prefix="/resources">
+        <file>icons/media-playback-pause-symbolic.svg</file>
+        <file>icons/media-playback-start-symbolic.svg</file>
+        <file>icons/audio-volume-high-symbolic.svg</file>
+        <file>icons/audio-volume-muted-symbolic.svg</file>
+        <file>icons/view-more-symbolic.svg</file>
+        <file>icons/weather-clear-night-symbolic.svg</file>
+        <file>icons/weather-clear-symbolic.svg</file>
+    </qresource>
+    <qresource prefix="/">
+        <file>BaseRoundButton.qml</file>
+        <file>GridPage.qml</file>
+        <file>PlayerPage.qml</file>
+        <file>SettingsPage.qml</file>
+        <file>SettingsRow.qml</file>
+        <file>SettingsSection.qml</file>
+        <file>SettingsComboBox.qml</file>
+    </qresource>
+</RCC>

@@ -1,0 +1,190 @@
+import QtQuick 2.15
+import QtQuick.Controls 2.15
+import QtQuick.Layouts 1.15
+import App 1.0
+
+Item {
+    ScrollView {
+        anchors.fill: parent
+        anchors.margins: 24
+        clip: true
+        visible: clipModel.count > 0
+
+        GridView {
+            id: gridView
+            cellWidth: 320
+            cellHeight: 240
+
+            model: clipModel
+
+            delegate: Item {
+                width: 320
+                height: 240
+
+                Rectangle {
+                    id: card
+                    anchors.fill: parent
+                    anchors.margins: 12
+                    radius: 12
+                    color: bgSecondary
+                    clip: true
+                    scale: mouseArea.containsMouse ? 1.015 : 1.0
+
+                    Behavior on scale {
+                        NumberAnimation { duration: 120; easing.type: Easing.OutQuad }
+                    }
+
+                    MouseArea {
+                        id: mouseArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+
+                        onClicked: {
+                            root.currentVideoSource = model.path
+                            root.currentVideoIndex = index
+                            root.currentView = 1
+                        }
+                    }
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        spacing: 0
+
+                        Item {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 150
+                            clip: true
+
+                            Image {
+                                anchors.fill: parent
+                                source: index >= 0 ? "image://thumbnails/" + index : ""
+                                fillMode: Image.PreserveAspectCrop
+                                asynchronous: true
+                                cache: true
+                                visible: index >= 0
+                            }
+
+                            // Gradient for readability
+                            Rectangle {
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.bottom: parent.bottom
+                                height: parent.height * 0.45
+                                gradient: Gradient {
+                                    GradientStop { position: 0.0; color: "#00000000" }
+                                    GradientStop { position: 0.6; color: "#66000000" }
+                                    GradientStop { position: 1.0; color: "#CC000000" }
+                                }
+                            }
+
+                            // Duration badge
+                            Rectangle {
+                                anchors.right: parent.right
+                                anchors.bottom: parent.bottom
+                                anchors.margins: 8
+                                height: 24
+                                width: durationLabel.implicitWidth + 16
+                                radius: 4
+                                color: "#000000"
+                                opacity: 0.85
+
+                                Label {
+                                    id: durationLabel
+                                    anchors.centerIn: parent
+                                    text: model.duration
+                                    font.pixelSize: 12
+                                    color: "#ffffff"
+                                }
+                            }
+
+                            // ▶ Play overlay on hover
+                            Rectangle {
+                                anchors.centerIn: parent
+                                width: 44
+                                height: 44
+                                radius: 22
+                                color: "#80000000"
+                                opacity: mouseArea.containsMouse ? 1 : 0
+
+                                Behavior on opacity {
+                                    NumberAnimation { duration: 120 }
+                                }
+
+                                Image {
+                                    anchors.centerIn: parent
+                                    source: "qrc:/resources/icons/media-playback-start-symbolic.svg"
+                                    width: 18
+                                    height: 18
+                                    fillMode: Image.PreserveAspectFit
+                                }
+                            }
+                        }
+
+                        // 📝 Info section
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            Layout.margins: 12
+                            spacing: 6
+
+                            Label {
+                                text: model.name
+                                font.pixelSize: 15
+                                font.weight: Font.DemiBold
+                                color: textPrimary
+                                elide: Text.ElideRight
+                                Layout.fillWidth: true
+                            }
+
+                            Label {
+                                text: model.date
+                                font.pixelSize: 12
+                                color: textSecondary
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Item {
+        anchors.centerIn: parent
+        width: 300
+        visible: gridView.count === 0
+
+        ColumnLayout {
+            anchors.centerIn: parent
+            spacing: 10
+
+            Text {
+                text: "☹"
+                font.pixelSize: 72
+                font.family: "Segoe UI Emoji"
+                color: textSecondary
+                opacity: 0.5
+                Layout.alignment: Qt.AlignHCenter
+            }
+
+            ColumnLayout {
+                spacing: 8
+                Layout.alignment: Qt.AlignHCenter
+
+                Label {
+                    text: "No captures yet"
+                    font.pixelSize: 20
+                    font.weight: Font.DemiBold
+                    color: textPrimary
+                    Layout.alignment: Qt.AlignHCenter
+                }
+
+                Label {
+                    text: "Your captured videos will appear here"
+                    font.pixelSize: 14
+                    color: textSecondary
+                    Layout.alignment: Qt.AlignHCenter
+                }
+            }
+        }
+    }
+}

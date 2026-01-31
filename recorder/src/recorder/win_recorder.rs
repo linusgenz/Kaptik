@@ -416,13 +416,29 @@ impl VideoEncoder {
     ) -> Result<Self> {
         let mut args = Vec::new();
 
-        let input_pix_fmt = if is_hdr_enabled {
-            "rgba64le".to_string()   // FP16 scRGB
+        if is_hdr_enabled {
+            args.extend_from_slice(&[
+                "-f".to_string(),
+                "rawvideo".to_string(),
+                "-pixel_format".to_string(),
+                "rgba64le".to_string(), // 16-bit HDR
+                "-colorspace".to_string(),
+                "bt2020nc".to_string(),
+                "-color_primaries".to_string(),
+                "bt2020".to_string(),
+                "-color_trc".to_string(),
+                "smpte2084".to_string(),
+                "-color_range".to_string(),
+                "pc".to_string(),
+
+                "-video_size".to_string(),
+                format!("{}x{}", native_width, native_height),
+                "-framerate".to_string(),
+                fps.to_string(),
+                "-i".to_string(),
+                "pipe:0".to_string(),
+            ]);
         } else {
-            "bgra".to_string()
-        };
-
-
             args.extend_from_slice(&[
                 "-f".to_string(),
                 "rawvideo".to_string(),
@@ -437,7 +453,7 @@ impl VideoEncoder {
                 "-i".to_string(),
                 "pipe:0".to_string(),
             ]);
-
+        }
 
         // Dynamische Audio-Eingaben
         let mut audio_inputs = Vec::new();
