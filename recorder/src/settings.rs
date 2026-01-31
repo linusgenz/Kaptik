@@ -1,6 +1,14 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Arc;
+use tokio::sync::RwLock;
+use once_cell::sync::Lazy;
+use crate::log;
+
+pub static SETTINGS: Lazy<Arc<RwLock<Settings>>> = Lazy::new(|| {
+    Arc::new(RwLock::new(Settings::load()))
+});
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -12,6 +20,10 @@ pub struct Settings {
     pub game_audio: bool,
     pub microphone: bool,
     pub system_sounds: bool,
+    pub auto_record: bool,
+
+    pub selected_game_audio_device: Option<String>,
+    pub selected_microphone_device: Option<String>,
 }
 
 impl Default for Settings {
@@ -24,24 +36,27 @@ impl Default for Settings {
             game_audio: true,
             microphone: true,
             system_sounds: false,
+            auto_record: true,
+            selected_game_audio_device: None,
+            selected_microphone_device: None,
         }
     }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Resolution {
-    R720p,
-    R1080p,
-    R1440p,
-    R4K,
-    Custom,
+    R720p = 0,
+    R1080p = 1,
+    R1440p = 2,
+    R4K = 3,
+    Source = 4,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Fps {
-    Fps30,
-    Fps60,
-    Fps120,
+    Fps30 = 0,
+    Fps60 = 1,
+    Fps120 = 2,
 }
 
 impl Settings {
@@ -54,6 +69,9 @@ impl Settings {
             game_audio: true,
             microphone: true,
             system_sounds: false,
+            auto_record: true,
+            selected_game_audio_device: None,
+            selected_microphone_device: None,
         }
     }
 
@@ -69,7 +87,7 @@ impl Settings {
         let path = Settings::path();
 
         if path.exists() {
-            println!("Loaded settings file: {}", path.display());
+            log!("Loaded settings file: {}", path.display());
             let content = fs::read_to_string(&path).unwrap_or_default();
             toml::from_str(&content).unwrap_or_else(|_| Settings::default())
         } else {
@@ -94,19 +112,19 @@ impl Settings {
             }
             "resolution" => {
                 self.resolution = match value {
-                    "R720p" => Resolution::R720p,
-                    "R1080p" => Resolution::R1080p,
-                    "R1440p" => Resolution::R1440p,
-                    "R4K" => Resolution::R4K,
-                    "Custom" => Resolution::Custom,
+                    "0" => Resolution::R720p,
+                    "1" => Resolution::R1080p,
+                    "2" => Resolution::R1440p,
+                    "3" => Resolution::R4K,
+                    "4" => Resolution::Source,
                     _ => return Err(format!("Invalid resolution: {}", value)),
                 };
             }
             "fps_limit" => {
                 self.fps_limit = match value {
-                    "Fps30" => Fps::Fps30,
-                    "Fps60" => Fps::Fps60,
-                    "Fps120" => Fps::Fps120,
+                    "0" => Fps::Fps30,
+                    "1" => Fps::Fps60,
+                    "2" => Fps::Fps120,
                     _ => return Err(format!("Invalid FPS: {}", value)),
                 };
             }
@@ -129,4 +147,21 @@ impl Settings {
         }
         Ok(())
     }
+}
+
+pub async fn get_setting<F, R>(f: F) -> R
+where
+    F: FnOnce(&Settings) -> R,
+{
+    let settings = SETTINGS.read().await;
+    f(&settings)
+}
+
+pub async fn update_setting<F>(f: F)
+where
+    F: FnOnce(&mut Settings),
+{
+    let mut settings = SETTINGS.write().await;
+    f(&mut settings);
+    settings.save();
 }
