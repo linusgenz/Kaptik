@@ -1,3 +1,4 @@
 app/libs/boost
 app/libs/msgpack
 recorder/target
+.idea
