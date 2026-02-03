@@ -5,6 +5,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use once_cell::sync::Lazy;
 use crate::log;
+use crate::recorder::win_recorder::tonemap::{HdrNitsMode, TonemapAlgorithm};
 
 pub static SETTINGS: Lazy<Arc<RwLock<Settings>>> = Lazy::new(|| {
     Arc::new(RwLock::new(Settings::load()))
@@ -24,6 +25,9 @@ pub struct Settings {
 
     pub selected_game_audio_device: Option<String>,
     pub selected_microphone_device: Option<String>,
+
+    pub tonemap_algorithm: TonemapAlgorithm,
+    pub hdr_nits_mode: HdrNitsMode
 }
 
 impl Default for Settings {
@@ -31,7 +35,7 @@ impl Default for Settings {
         Settings {
             dark_mode: false,
             video_path: "".to_string(),
-            resolution: Resolution::R1080p,
+            resolution: Resolution::Resolution1080p,
             fps_limit: Fps::Fps60,
             game_audio: true,
             microphone: true,
@@ -39,18 +43,22 @@ impl Default for Settings {
             auto_record: true,
             selected_game_audio_device: None,
             selected_microphone_device: None,
+            tonemap_algorithm: TonemapAlgorithm::default(),
+            hdr_nits_mode: HdrNitsMode::default()
         }
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[serde(rename_all = "PascalCase")]
 pub enum Resolution {
-    R720p = 0,
-    R1080p = 1,
-    R1440p = 2,
-    R4K = 3,
-    Source = 4,
+    Resolution720p,
+    Resolution1080p,
+    Resolution1440p,
+    Resolution4K,
+    ResolutionSource,
 }
+
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Fps {
@@ -60,21 +68,6 @@ pub enum Fps {
 }
 
 impl Settings {
-    pub fn default() -> Self {
-        Settings {
-            dark_mode: false,
-            video_path: "".to_string(),
-            resolution: Resolution::R1080p,
-            fps_limit: Fps::Fps60,
-            game_audio: true,
-            microphone: true,
-            system_sounds: false,
-            auto_record: true,
-            selected_game_audio_device: None,
-            selected_microphone_device: None,
-        }
-    }
-
     pub fn path() -> PathBuf {
         let mut dir = dirs::config_dir().unwrap();
         dir.push("Kaptik");
@@ -103,45 +96,39 @@ impl Settings {
     pub fn update(&mut self, key: &str, value: &str) -> Result<(), String> {
         match key {
             "dark_mode" => {
-                self.dark_mode = value
-                    .parse::<bool>()
+                self.dark_mode = value.parse::<bool>()
                     .map_err(|_| format!("Invalid boolean for {}: {}", key, value))?;
             }
             "video_path" => {
                 self.video_path = value.to_string();
             }
             "resolution" => {
-                self.resolution = match value {
-                    "0" => Resolution::R720p,
-                    "1" => Resolution::R1080p,
-                    "2" => Resolution::R1440p,
-                    "3" => Resolution::R4K,
-                    "4" => Resolution::Source,
-                    _ => return Err(format!("Invalid resolution: {}", value)),
-                };
+                self.resolution = serde_plain::from_str(value)
+                    .map_err(|_| format!("Invalid resolution: {}", value))?;
             }
             "fps_limit" => {
-                self.fps_limit = match value {
-                    "0" => Fps::Fps30,
-                    "1" => Fps::Fps60,
-                    "2" => Fps::Fps120,
-                    _ => return Err(format!("Invalid FPS: {}", value)),
-                };
+                self.fps_limit = serde_plain::from_str(value)
+                    .map_err(|_| format!("Invalid FPS: {}", value))?;
             }
             "game_audio" => {
-                self.game_audio = value
-                    .parse::<bool>()
+                self.game_audio = value.parse::<bool>()
                     .map_err(|_| format!("Invalid boolean for {}: {}", key, value))?;
             }
             "microphone" => {
-                self.microphone = value
-                    .parse::<bool>()
+                self.microphone = value.parse::<bool>()
                     .map_err(|_| format!("Invalid boolean for {}: {}", key, value))?;
             }
             "system_sounds" => {
-                self.system_sounds = value
-                    .parse::<bool>()
+                self.system_sounds = value.parse::<bool>()
                     .map_err(|_| format!("Invalid boolean for {}: {}", key, value))?;
+            }
+            "tonemap_algorithm" => {
+                self.tonemap_algorithm = serde_plain::from_str(value)
+                    .map_err(|_| format!("Invalid tonemap algorithm: {}", value))?;
+            },
+            "hdr_nits_mode" => {
+                self.hdr_nits_mode = serde_plain::from_str(value)
+                    .map_err(|_| format!("Invalid HDR nits mode: {}", value))?;
             }
             _ => return Err(format!("Unknown setting key: {}", key)),
         }

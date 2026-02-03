@@ -48,7 +48,9 @@ public:
         Key_FpsLimit,
         Key_GameAudio,
         Key_Microphone,
-        Key_SystemSounds
+        Key_SystemSounds,
+        Key_TonemapAlgorithm,
+        Key_HdrNitsMode
     };
     Q_ENUM(Key)
 
@@ -68,6 +70,24 @@ public:
     };
     Q_ENUM(Fps)
 
+    enum TonemapAlgorithm {
+        Reinhard,
+        AcesSimple,
+        AcesFitted,
+        Uncharted2,
+        HejlDawson
+    };
+    Q_ENUM(TonemapAlgorithm)
+
+    enum HdrNitsMode {
+        HdrNitsAuto,
+        HdrNits1000,
+        HdrNits2000,
+        HdrNits4000,
+        HdrNits10000
+    };
+    Q_ENUM(HdrNitsMode)
+
     Q_INVOKABLE QVariant value(Key key) const {
         auto it = m_data.find(key);
         if (it != m_data.end())
@@ -81,19 +101,34 @@ public:
         QString keyStr = keyToString(key);
         QString valueStr;
 
-        if (value.metaType().id() == QMetaType::Bool)
-            valueStr = value.toBool() ? "true" : "false";
-        else if (value.metaType().id() == QMetaType::Int)
-            valueStr = QString::number(value.toInt());
-        else
-            valueStr = value.toString();
+        switch (key) {
+        case Key_Resolution:
+            valueStr = enumToString(static_cast<Resolution>(value.toInt()));
+            break;
+        case Key_FpsLimit:
+            valueStr = enumToString(static_cast<Fps>(value.toInt()));
+            break;
+        case Key_TonemapAlgorithm:
+            valueStr = enumToString(static_cast<TonemapAlgorithm>(value.toInt()));
+            break;
+        case Key_HdrNitsMode:
+            valueStr = enumToString(static_cast<HdrNitsMode>(value.toInt()));
+            break;
+
+        default:
+            if (value.metaType().id() == QMetaType::Bool)
+                valueStr = value.toBool() ? "true" : "false";
+            else if (value.metaType().id() == QMetaType::Int)
+                valueStr = QString::number(value.toInt());
+            else
+                valueStr = value.toString();
+            break;
+        }
 
         m_ipc.sendUpdateSetting(keyStr, valueStr);
-
         saveToDisk();
         emit settingChanged(key, value);
     }
-
 
 signals:
     void settingChanged(Key key, QVariant value);
@@ -112,6 +147,8 @@ private:
         case Key_GameAudio:    return "game_audio";
         case Key_Microphone:   return "microphone";
         case Key_SystemSounds: return "system_sounds";
+        case Key_TonemapAlgorithm: return "tonemap_algorithm";
+        case Key_HdrNitsMode:      return "hdr_nits_mode";
         }
         return {};
     }
@@ -125,8 +162,31 @@ private:
         case Key_GameAudio:    return true;
         case Key_Microphone:   return true;
         case Key_SystemSounds: return false;
+        case Key_TonemapAlgorithm: return AcesFitted;
+        case Key_HdrNitsMode:      return HdrNitsAuto;
         }
         return {};
+    }
+
+    template<typename Enum>
+    QString enumToString(Enum value) const {
+        const QMetaObject &mo = staticMetaObject;
+        int index = mo.indexOfEnumerator(QMetaEnum::fromType<Enum>().name());
+        QMetaEnum me = mo.enumerator(index);
+        return QString::fromLatin1(me.valueToKey(static_cast<int>(value)));
+    }
+
+    template<typename Enum>
+    Enum stringToEnum(const QString &key, Enum defaultValue) const {
+        const QMetaObject &mo = staticMetaObject;
+        int index = mo.indexOfEnumerator(QMetaEnum::fromType<Enum>().name());
+        QMetaEnum me = mo.enumerator(index);
+
+        int val = me.keyToValue(key.toLatin1().constData());
+        if (val == -1)
+            return defaultValue;
+
+        return static_cast<Enum>(val);
     }
 
     void loadFromDisk() {
@@ -142,18 +202,59 @@ private:
         try {
             auto tbl = toml::parse_file(m_filePath.toStdString());
 
-            for (int k = Key_DarkMode; k <= Key_SystemSounds; ++k) {
-                auto key = keyToString(static_cast<Key>(k));
-                if (tbl.contains(key.toStdString())) {
-                    const auto& val = tbl[key.toStdString()];
+            for (int k = Key_DarkMode; k <= Key_HdrNitsMode; ++k) {
+                Key keyEnum = static_cast<Key>(k);
+                QString key = keyToString(keyEnum);
+
+                if (!tbl.contains(key.toStdString()))
+                    continue;
+
+                const auto& val = tbl[key.toStdString()];
+
+                switch (keyEnum) {
+                case Key_Resolution:
+                    if (val.is_string())
+                        m_data[keyEnum] = static_cast<int>(
+                            stringToEnum<Resolution>(
+                                QString::fromStdString(val.value_or("Resolution1080p")),
+                                Resolution1080p));
+                    break;
+
+                case Key_FpsLimit:
+                    if (val.is_string())
+                        m_data[keyEnum] = static_cast<int>(
+                            stringToEnum<Fps>(
+                                QString::fromStdString(val.value_or("Fps60")),
+                                Fps60));
+                    break;
+
+                case Key_TonemapAlgorithm:
+                    if (val.is_string())
+                        m_data[keyEnum] = static_cast<int>(
+                            stringToEnum<TonemapAlgorithm>(
+                                QString::fromStdString(val.value_or("Tonemap_AcesFitted")),
+                                AcesFitted));
+                    break;
+
+                case Key_HdrNitsMode:
+                    if (val.is_string())
+                        m_data[keyEnum] = static_cast<int>(
+                            stringToEnum<HdrNitsMode>(
+                                QString::fromStdString(val.value_or("HdrNits_Auto")),
+                                HdrNitsAuto));
+                    break;
+
+                default:
                     if (val.is_boolean())
-                        m_data[static_cast<Key>(k)] = val.value_or(false);
+                        m_data[keyEnum] = val.value_or(false);
                     else if (val.is_integer())
-                        m_data[static_cast<Key>(k)] = static_cast<int>(val.value_or(0));
+                        m_data[keyEnum] = static_cast<int>(val.value_or(0));
                     else if (val.is_string())
-                        m_data[static_cast<Key>(k)] = QString::fromStdString(val.value_or(""));
+                        m_data[keyEnum] = QString::fromStdString(val.value_or(""));
+                    break;
                 }
             }
+
         } catch (const toml::parse_error& err) {
             std::cerr << "Failed to parse settings.toml: " << err.description() << std::endl;
         }
@@ -163,15 +264,31 @@ private:
         toml::table tbl;
 
         for (const auto& [k, v] : m_data) {
-            auto keyQString = keyToString(k);
-            std::string key = keyQString.toStdString();
+            std::string key = keyToString(k).toStdString();
 
-            if (v.metaType().id() == QMetaType::Bool)
-                tbl.insert(key, v.toBool());
-            else if (v.metaType().id() == QMetaType::Int)
-                tbl.insert(key, v.toInt());
-            else if (v.metaType().id() == QMetaType::QString)
-                tbl.insert(key, v.toString().toStdString());
+            switch (k) {
+            case Key_Resolution:
+                tbl.insert(key, enumToString(static_cast<Resolution>(v.toInt())).toStdString());
+                break;
+            case Key_FpsLimit:
+                tbl.insert(key, enumToString(static_cast<Fps>(v.toInt())).toStdString());
+                break;
+            case Key_TonemapAlgorithm:
+                tbl.insert(key, enumToString(static_cast<TonemapAlgorithm>(v.toInt())).toStdString());
+                break;
+            case Key_HdrNitsMode:
+                tbl.insert(key, enumToString(static_cast<HdrNitsMode>(v.toInt())).toStdString());
+                break;
+
+            default:
+                if (v.metaType().id() == QMetaType::Bool)
+                    tbl.insert(key, v.toBool());
+                else if (v.metaType().id() == QMetaType::QString)
+                    tbl.insert(key, v.toString().toStdString());
+                else if (v.metaType().id() == QMetaType::Int)
+                    tbl.insert(key, v.toInt());
+                break;
+            }
         }
 
         std::ofstream ofs(m_filePath.toStdString());

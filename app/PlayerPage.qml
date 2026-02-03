@@ -176,7 +176,6 @@ RowLayout {
                     onClicked: {
                         if (mediaPlayer.playbackState === MediaPlayer.PlayingState) {
                             mediaPlayer.pause()
-                            pauseOverlay.showOnce()
                         } else {
                             mediaPlayer.play()
                         }
@@ -316,6 +315,16 @@ RowLayout {
                             pauseOverlay.scale = 0.5
                         }
                     }
+
+                    Connections {
+                        target: mediaPlayer
+
+                        function onPlaybackStateChanged() {
+                            if (mediaPlayer.playbackState === MediaPlayer.PausedState) {
+                                pauseOverlay.showOnce()
+                            }
+                        }
+                    }
                 }
 
                 Label {
@@ -352,7 +361,6 @@ RowLayout {
                         onClicked: {
                             if (mediaPlayer.playbackState === MediaPlayer.PlayingState) {
                                 mediaPlayer.pause()
-                                pauseOverlay.showOnce()
                             } else {
                                 mediaPlayer.play()
                             }

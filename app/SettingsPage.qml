@@ -337,6 +337,47 @@ Item {
                         }
                     }
 
+                    SettingsSection {
+                        Layout.fillWidth: true
+                        sectionTitle: "HDR & Tonemapping"
+
+                        SettingsRow {
+                            Layout.fillWidth: true
+                            label: "Tonemapping Algorithm"
+                            description: "Controls how HDR is converted to SDR video"
+
+                            SettingsComboBox {
+                                settingsKey: Settings.Key_TonemapAlgorithm
+
+                                model: [
+                                    { text: "ACES Fitted (Best Quality)", value: Settings.AcesFitted },
+                                    { text: "ACES Simple (Fast)", value: Settings.AcesSimple },
+                                    { text: "Uncharted 2 (Filmic)", value: Settings.Uncharted2 },
+                                    { text: "Reinhard (Balanced)", value: Settings.Reinhard },
+                                    { text: "Hejl-Dawson (Fast Filmic)", value: Settings.HejlDawson }
+                                ]
+                            }
+                        }
+
+                        SettingsRow {
+                            Layout.fillWidth: true
+                            label: "HDR Brightness Mode"
+                            description: "How the recorder determines HDR peak brightness"
+
+                            SettingsComboBox {
+                                settingsKey: Settings.Key_HdrNitsMode
+
+                                model: [
+                                    { text: "Automatic (Recommended)", value: Settings.HdrNitsAuto },
+                                    { text: "Assume 1000 nits", value: Settings.HdrNits1000 },
+                                    { text: "Assume 2000 nits", value: Settings.HdrNits2000 },
+                                    { text: "Assume 4000 nits", value: Settings.HdrNits4000 },
+                                    { text: "Assume 10000 nits (HDR10 Max)", value: Settings.HdrNits10000 }
+                                ]
+                            }
+                        }
+                    }
+
                     // About Section
                     SettingsSection {
                         Layout.fillWidth: true

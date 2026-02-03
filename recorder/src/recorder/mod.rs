@@ -3,7 +3,6 @@ use serde::{Deserialize, Serialize};
 
 pub mod win_recorder;
 mod audio_devices;
-mod utils;
 
 use crate::game_detection;
 
