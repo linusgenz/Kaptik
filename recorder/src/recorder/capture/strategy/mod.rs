@@ -40,8 +40,6 @@ pub trait CaptureStrategy: Send + Sync {
 
 pub fn create_strategy(method: CaptureMethod) -> Box<dyn CaptureStrategy> {
     match method {
-        CaptureMethod::WindowsGraphicsCapture => {
-            Box::new(WindowsGraphicsCaptureStrategy::new())
-        }
+        CaptureMethod::WindowsGraphicsCapture => Box::new(WindowsGraphicsCaptureStrategy::new()),
     }
 }

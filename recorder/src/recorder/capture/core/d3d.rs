@@ -1,11 +1,11 @@
 use anyhow::Result;
-use windows::core::Interface;
+use windows::Graphics::DirectX::Direct3D11::IDirect3DDevice;
 use windows::Win32::Foundation::HMODULE;
 use windows::Win32::Graphics::Direct3D::*;
 use windows::Win32::Graphics::Direct3D11::*;
 use windows::Win32::Graphics::Dxgi::*;
 use windows::Win32::System::WinRT::Direct3D11::CreateDirect3D11DeviceFromDXGIDevice;
-use windows::Graphics::DirectX::Direct3D11::IDirect3DDevice;
+use windows::core::Interface;
 
 /// Creates a Direct3D11 device and context
 pub fn create_d3d11_device() -> Result<(ID3D11Device, ID3D11DeviceContext)> {
@@ -44,8 +44,7 @@ pub fn create_direct3d_device(d3d_device: &ID3D11Device) -> Result<IDirect3DDevi
 /// Checks if HDR is currently enabled on the primary display
 pub fn check_hdr_enabled() -> Result<bool> {
     use windows::Win32::Graphics::Dxgi::Common::{
-        DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709,
-        DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020,
+        DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709, DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020,
     };
 
     unsafe {
@@ -78,7 +77,10 @@ pub fn create_sdr_target(
         MipLevels: 1,
         ArraySize: 1,
         Format: DXGI_FORMAT_B8G8R8A8_UNORM,
-        SampleDesc: DXGI_SAMPLE_DESC { Count: 1, Quality: 0 },
+        SampleDesc: DXGI_SAMPLE_DESC {
+            Count: 1,
+            Quality: 0,
+        },
         Usage: D3D11_USAGE_DEFAULT,
         BindFlags: (D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE).0 as u32,
         CPUAccessFlags: 0,

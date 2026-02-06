@@ -1,7 +1,7 @@
 use chrono::Local;
 use serde::{Deserialize, Serialize};
 
-mod audio_devices;
+mod audio;
 pub(crate) mod capture;
 
 use crate::game_detection;

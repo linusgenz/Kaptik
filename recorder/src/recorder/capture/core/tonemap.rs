@@ -1,10 +1,10 @@
+use crate::log;
+use crate::recorder::capture::core::d3d;
 use anyhow::Result;
 use std::ffi::CString;
 use windows::Win32::Graphics::Direct3D::*;
 use windows::Win32::Graphics::Direct3D11::*;
 use windows::core::PCSTR;
-use crate::log;
-use crate::recorder::capture::core::d3d;
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "PascalCase")]
@@ -81,23 +81,19 @@ impl Default for TonemapAlgorithm {
 }
 
 impl ToneMapRenderer {
-    pub fn new(device: &ID3D11Device, width: u32, height: u32, algorithm: TonemapAlgorithm) -> Result<Self> {
+    pub fn new(
+        device: &ID3D11Device,
+        width: u32,
+        height: u32,
+        algorithm: TonemapAlgorithm,
+    ) -> Result<Self> {
         let (sdr_texture, rtv) = d3d::create_sdr_target(device, width, height)?;
 
-
-        let vs_blob = compile_shader(
-            include_str!("../shader/tonemap_vs.hlsl"),
-            "main",
-            "vs_5_0"
-        )?;
+        let vs_blob = compile_shader(include_str!("../shader/tonemap_vs.hlsl"), "main", "vs_5_0")?;
 
         log!("Using tonemap algorithm: {}", algorithm.name());
 
-        let ps_blob = compile_shader(
-            algorithm.shader_source(),
-            "main",
-            "ps_5_0"
-        )?;
+        let ps_blob = compile_shader(algorithm.shader_source(), "main", "ps_5_0")?;
 
         let vs = create_vertex_shader(device, &vs_blob)?;
         let ps = create_pixel_shader(device, &ps_blob)?;
@@ -194,17 +190,17 @@ fn compile_shader(source: &str, entry: &str, profile: &str) -> Result<ID3DBlob> 
             &mut blob,
             Some(&mut error_blob),
         )
-            .map_err(|e| {
-                if let Some(err) = error_blob {
-                    let msg = std::slice::from_raw_parts(
-                        err.GetBufferPointer() as *const u8,
-                        err.GetBufferSize(),
-                    );
-                    anyhow::anyhow!("Shader compile error: {}", String::from_utf8_lossy(msg))
-                } else {
-                    anyhow::anyhow!("Shader compile failed: {:?}", e)
-                }
-            })?;
+        .map_err(|e| {
+            if let Some(err) = error_blob {
+                let msg = std::slice::from_raw_parts(
+                    err.GetBufferPointer() as *const u8,
+                    err.GetBufferSize(),
+                );
+                anyhow::anyhow!("Shader compile error: {}", String::from_utf8_lossy(msg))
+            } else {
+                anyhow::anyhow!("Shader compile failed: {:?}", e)
+            }
+        })?;
 
         Ok(blob.unwrap())
     }
@@ -212,10 +208,8 @@ fn compile_shader(source: &str, entry: &str, profile: &str) -> Result<ID3DBlob> 
 
 fn create_vertex_shader(device: &ID3D11Device, blob: &ID3DBlob) -> Result<ID3D11VertexShader> {
     unsafe {
-        let bytes = std::slice::from_raw_parts(
-            blob.GetBufferPointer() as *const u8,
-            blob.GetBufferSize(),
-        );
+        let bytes =
+            std::slice::from_raw_parts(blob.GetBufferPointer() as *const u8, blob.GetBufferSize());
 
         let mut shader: Option<ID3D11VertexShader> = None;
         device.CreateVertexShader(bytes, None, Some(&mut shader))?;
@@ -225,10 +219,8 @@ fn create_vertex_shader(device: &ID3D11Device, blob: &ID3DBlob) -> Result<ID3D11
 
 fn create_pixel_shader(device: &ID3D11Device, blob: &ID3DBlob) -> Result<ID3D11PixelShader> {
     unsafe {
-        let bytes = std::slice::from_raw_parts(
-            blob.GetBufferPointer() as *const u8,
-            blob.GetBufferSize(),
-        );
+        let bytes =
+            std::slice::from_raw_parts(blob.GetBufferPointer() as *const u8, blob.GetBufferSize());
 
         let mut shader: Option<ID3D11PixelShader> = None;
         device.CreatePixelShader(bytes, None, Some(&mut shader))?;

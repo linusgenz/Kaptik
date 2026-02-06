@@ -1,10 +1,10 @@
-use std::any::Any;
 use super::{GameIntegrationTrait, GameState, Score};
+use crate::log;
 use anyhow::Result;
 use shaco::ingame::IngameClient;
+use std::any::Any;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use crate::log;
 
 #[derive(Debug, Clone)]
 pub struct GameEvent {

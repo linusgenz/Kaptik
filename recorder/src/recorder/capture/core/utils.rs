@@ -1,6 +1,6 @@
-use windows::core::PCWSTR;
 use windows::Win32::Foundation::HWND;
 use windows::Win32::UI::WindowsAndMessaging::FindWindowW;
+use windows::core::PCWSTR;
 
 pub fn extract_game_name(window_title: &str) -> String {
     window_title

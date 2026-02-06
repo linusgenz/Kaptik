@@ -1,10 +1,10 @@
 use super::*;
+use crate::log;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
-use crate::log;
 
 pub struct GameIntegrationManager {
     integrations: HashMap<String, Arc<RwLock<Box<dyn GameIntegrationTrait>>>>,
@@ -77,7 +77,7 @@ impl GameIntegrationManager {
                 return integration.read().await.is_in_round().await;
             }
         }
-        
+
         false
     }
 
@@ -117,15 +117,20 @@ impl GameIntegrationManager {
                     };
 
                     if let Ok(state) = integration.read().await.get_game_state().await {
-                        log!("[State] In-Round: {} | Champion: {:?} | Map: {:?}",
-                                 state.is_in_round, state.character_name, state.map_name
+                        log!(
+                            "[State] In-Round: {} | Champion: {:?} | Map: {:?}",
+                            state.is_in_round,
+                            state.character_name,
+                            state.map_name
                         );
                     }
 
-                    if let Some(lol_integration) = integration.read().await
+                    if let Some(lol_integration) = integration
+                        .read()
+                        .await
                         .as_any()
-                        .downcast_ref::<league_of_legends::LeagueOfLegendsIntegration>()
-                    {
+                        .downcast_ref::<league_of_legends::LeagueOfLegendsIntegration>(
+                    ) {
                         match lol_integration.get_new_events().await {
                             Ok(events) => {
                                 let player_name = {
@@ -147,8 +152,7 @@ impl GameIntegrationManager {
                                     }
                                 }
                             }
-                            Err(_) => {
-                            }
+                            Err(_) => {}
                         }
                     }
                 }

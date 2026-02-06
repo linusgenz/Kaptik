@@ -3,8 +3,8 @@ use async_trait::async_trait;
 use std::path::PathBuf;
 
 use super::{CaptureStrategy, RecordingMetadata};
-use crate::recorder::capture::win_recorder::capture::CaptureSession;
 use crate::log;
+use crate::recorder::capture::windows_graphics::CaptureSession;
 
 pub struct WindowsGraphicsCaptureStrategy {
     session: Option<CaptureSession>,

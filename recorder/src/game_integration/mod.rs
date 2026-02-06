@@ -15,10 +15,10 @@ pub struct GameIntegration {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ApiMethod {
-    LocalApi { port: u16 },           // z.B. Valorant, League
-    MemoryReading { offsets: Vec<MemoryOffset> },  // z.B. CS:GO
-    LogFileParsing { log_path: String },           // Fallback
-    GameStateIntegration { config_path: String },   // CS:GO GSI
+    LocalApi { port: u16 },                       // z.B. Valorant, League
+    MemoryReading { offsets: Vec<MemoryOffset> }, // z.B. CS:GO
+    LogFileParsing { log_path: String },          // Fallback
+    GameStateIntegration { config_path: String }, // CS:GO GSI
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

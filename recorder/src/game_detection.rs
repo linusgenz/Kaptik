@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use windows::core::{BOOL, PWSTR};
 use windows::Win32::Foundation::*;
 use windows::Win32::Graphics::Dwm::*;
 use windows::Win32::Graphics::Gdi::*;
 use windows::Win32::System::Threading::*;
 use windows::Win32::UI::WindowsAndMessaging::*;
+use windows::core::{BOOL, PWSTR};
 
 #[derive(Debug, Clone)]
 pub struct GameProcess {
@@ -223,7 +223,7 @@ impl GameDetector {
             "mmc.exe",
             "cmd.exe",
             "powershell.exe",
-            "SnippingTool.exe"
+            "SnippingTool.exe",
         ];
 
         if excluded_processes.iter().any(|e| exe_lower.contains(e)) {
@@ -234,7 +234,7 @@ impl GameDetector {
             "leagueclientux.exe",
             "leagueclient.exe",
             "riotclientservices.exe",
-            "Riot Client.exe"
+            "Riot Client.exe",
         ];
         if launcher_exes.iter().any(|e| exe_lower.contains(e)) {
             return false;

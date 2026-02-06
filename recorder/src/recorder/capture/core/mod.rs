@@ -1,5 +1,4 @@
-pub mod encoder;
+pub mod d3d;
+pub mod ffmpeg;
 pub mod tonemap;
 pub mod utils;
-pub mod d3d;
-pub mod wasapi;

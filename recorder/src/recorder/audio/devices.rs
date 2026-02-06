@@ -1,18 +1,18 @@
 use crate::settings::Settings;
 use windows::Win32::Media::Audio::eConsole;
 use windows::{
-    core::Result,
     Win32::Media::Audio::MMDeviceEnumerator,
-    Win32::Media::Audio::{
-        eCapture, eRender, IMMDevice, IMMDeviceEnumerator,
+    Win32::Media::Audio::{IMMDevice, IMMDeviceEnumerator, eCapture, eRender},
+    Win32::System::Com::{
+        CLSCTX_ALL, COINIT_MULTITHREADED, CoCreateInstance, CoInitializeEx, CoUninitialize,
     },
-    Win32::System::Com::{CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_MULTITHREADED},
+    core::Result,
 };
 
 fn get_default_device_id(role_render: bool) -> Result<String> {
     unsafe {
         CoInitializeEx(*std::ptr::null_mut(), COINIT_MULTITHREADED).ok()?;
-        
+
         let enumerator: IMMDeviceEnumerator =
             CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;
 

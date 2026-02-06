@@ -1,18 +1,17 @@
+use crate::game_integration::GameState;
+use crate::log;
 use anyhow::Result;
+use core::utils;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use core::utils;
-use crate::game_integration::GameState;
-use crate::log;
 
-use strategy::{create_strategy, CaptureMethod, CaptureStrategy};
 use super::RecordingMetadata;
+use strategy::{CaptureMethod, CaptureStrategy, create_strategy};
 
 pub(crate) mod core;
 pub mod strategy;
-mod win_recorder;
-mod audio_mixer;
+mod windows_graphics;
 
 pub struct WindowsCaptureRecorder {
     is_recording: Arc<RwLock<bool>>,
@@ -65,7 +64,9 @@ impl WindowsCaptureRecorder {
 
         // Use selected strategy
         let mut strategy = self.strategy.write().await;
-        strategy.start_capture(window_title, metadata, output_path).await?;
+        strategy
+            .start_capture(window_title, metadata, output_path)
+            .await?;
 
         *self.is_recording.write().await = true;
         Ok(())

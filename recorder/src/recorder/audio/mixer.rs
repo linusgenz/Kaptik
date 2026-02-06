@@ -1,4 +1,4 @@
-use crate::recorder::capture::core::wasapi::AudioSample;
+use crate::recorder::audio::AudioSample;
 use std::sync::{Arc, Mutex};
 
 pub struct AudioMixer {
@@ -79,9 +79,7 @@ impl AudioMixer {
                     Some(self.apply_volume(sample, self.mic_volume))
                 }
             }
-            (false, false) => {
-                None
-            }
+            (false, false) => None,
         }
     }
 
@@ -129,8 +127,7 @@ impl AudioMixer {
         let samples = bytemuck::cast_slice_mut::<u8, i16>(&mut sample.data);
 
         for sample_val in samples.iter_mut() {
-            let adjusted = ((*sample_val as i32 * volume as i32) / 100)
-                .clamp(-32768, 32767);
+            let adjusted = ((*sample_val as i32 * volume as i32) / 100).clamp(-32768, 32767);
             *sample_val = adjusted as i16;
         }
 

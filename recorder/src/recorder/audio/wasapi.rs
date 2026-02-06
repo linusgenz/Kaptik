@@ -3,11 +3,11 @@ use anyhow::Result;
 use std::os::raw::c_void;
 use std::sync::mpsc as std_mpsc;
 use tokio::sync::mpsc;
-use windows::core::*;
 use windows::Win32::Media::Audio::*;
 use windows::Win32::Media::KernelStreaming::WAVE_FORMAT_EXTENSIBLE;
 use windows::Win32::Media::Multimedia::WAVE_FORMAT_IEEE_FLOAT;
 use windows::Win32::System::Com::*;
+use windows::core::*;
 
 pub struct AudioSample {
     pub data: Vec<u8>,
@@ -125,11 +125,7 @@ impl WasapiCapture {
                 match enumerator.GetDevice(PCWSTR(device_id_wide.as_ptr())) {
                     Ok(dev) => dev,
                     Err(e) => {
-                        log!(
-                            "⚠️ GetDevice failed for ID '{}': {:?}",
-                            device_id,
-                            e
-                        );
+                        log!("⚠️ GetDevice failed for ID '{}': {:?}", device_id, e);
                         return;
                     }
                 }
@@ -191,8 +187,12 @@ impl WasapiCapture {
 
         let format_tag = device_format.wFormatTag;
 
-        log!("Audio format: tag={}, Float={}, {} input channels → 2 stereo",
-            format_tag, is_float, input_channels);
+        log!(
+            "Audio format: tag={}, Float={}, {} input channels → 2 stereo",
+            format_tag,
+            is_float,
+            input_channels
+        );
 
         loop {
             match stop_rx.try_recv() {
@@ -246,13 +246,7 @@ impl WasapiCapture {
             let mut frames_available: u32 = 0;
             let mut flags: u32 = 0;
 
-            capture_client.GetBuffer(
-                &mut buffer,
-                &mut frames_available,
-                &mut flags,
-                None,
-                None,
-            )?;
+            capture_client.GetBuffer(&mut buffer, &mut frames_available, &mut flags, None, None)?;
 
             if frames_available > 0 {
                 let data = if flags & AUDCLNT_BUFFERFLAGS_SILENT.0 as u32 != 0 {
@@ -267,11 +261,7 @@ impl WasapiCapture {
                     )
                 } else if bytes_per_sample == 2 {
                     // 16-bit PCM → Downmix zu Stereo
-                    Self::convert_pcm16_to_stereo(
-                        buffer,
-                        frames_available as usize,
-                        input_channels,
-                    )
+                    Self::convert_pcm16_to_stereo(buffer, frames_available as usize, input_channels)
                 } else {
                     // Anderes Format: Fallback auf Stille
                     log!(
@@ -303,10 +293,8 @@ impl WasapiCapture {
         frames: usize,
         input_channels: usize,
     ) -> Vec<u8> {
-        let float_buffer = std::slice::from_raw_parts(
-            buffer as *const f32,
-            frames * input_channels,
-        );
+        let float_buffer =
+            std::slice::from_raw_parts(buffer as *const f32, frames * input_channels);
 
         let mut output = Vec::with_capacity(frames * 2 * 2);
 
@@ -364,10 +352,8 @@ impl WasapiCapture {
         frames: usize,
         input_channels: usize,
     ) -> Vec<u8> {
-        let int16_buffer = std::slice::from_raw_parts(
-            buffer as *const i16,
-            frames * input_channels,
-        );
+        let int16_buffer =
+            std::slice::from_raw_parts(buffer as *const i16, frames * input_channels);
 
         let mut output = Vec::with_capacity(frames * 2 * 2);
 
@@ -375,12 +361,8 @@ impl WasapiCapture {
             let base = frame_idx * input_channels;
 
             let (left, right) = match input_channels {
-                1 => {
-                    (int16_buffer[base], int16_buffer[base])
-                }
-                2 => {
-                    (int16_buffer[base], int16_buffer[base + 1])
-                }
+                1 => (int16_buffer[base], int16_buffer[base]),
+                2 => (int16_buffer[base], int16_buffer[base + 1]),
                 3 | 4 | 5 | 6 | 7 | 8 => {
                     let fl = int16_buffer.get(base).copied().unwrap_or(0) as f32 / 32767.0;
                     let fr = int16_buffer.get(base + 1).copied().unwrap_or(0) as f32 / 32767.0;
@@ -405,7 +387,10 @@ impl WasapiCapture {
                     (left_i16, right_i16)
                 }
                 _ => {
-                    log!("⚠️ Unknown PCM16 channel configuration: {} channels", input_channels);
+                    log!(
+                        "⚠️ Unknown PCM16 channel configuration: {} channels",
+                        input_channels
+                    );
                     (0, 0)
                 }
             };
