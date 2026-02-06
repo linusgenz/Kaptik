@@ -11,7 +11,8 @@ mod logger;
 
 use game_integration::manager::GameIntegrationManager;
 use crate::game_detection::{GameDetector, GameEvent};
-use crate::recorder::win_recorder::WindowsCaptureRecorder;
+use crate::recorder::capture::WindowsCaptureRecorder;
+use crate::recorder::capture::strategy::CaptureMethod;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -22,7 +23,7 @@ async fn main() -> anyhow::Result<()> {
     let integration_manager = Arc::new(GameIntegrationManager::new());
     integration_manager.start_monitoring().await;
 
-    let recorder = Arc::new(WindowsCaptureRecorder::new());
+    let recorder = Arc::new(WindowsCaptureRecorder::new(CaptureMethod::WindowsGraphicsCapture));
 
     let game_event_tx = event_tx.clone();
     let integration_mgr = integration_manager.clone();

@@ -1,30 +1,40 @@
-use super::RecordingMetadata;
-use crate::game_integration::GameState;
-use crate::log;
 use anyhow::Result;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use core::utils;
+use crate::game_integration::GameState;
+use crate::log;
 
-mod capture;
-mod d3d;
-mod encoder;
-pub(crate) mod tonemap;
-mod utils;
+use strategy::{create_strategy, CaptureMethod, CaptureStrategy};
+use super::RecordingMetadata;
 
-use capture::CaptureSession;
+pub(crate) mod core;
+pub mod strategy;
+mod win_recorder;
+mod audio_mixer;
 
 pub struct WindowsCaptureRecorder {
     is_recording: Arc<RwLock<bool>>,
-    current_session: Arc<RwLock<Option<CaptureSession>>>,
+    strategy: Arc<RwLock<Box<dyn CaptureStrategy>>>,
 }
 
 impl WindowsCaptureRecorder {
-    pub fn new() -> Self {
+    pub fn new(method: CaptureMethod) -> Self {
         Self {
             is_recording: Arc::new(RwLock::new(false)),
-            current_session: Arc::new(RwLock::new(None)),
+            strategy: Arc::new(RwLock::new(create_strategy(method))),
         }
+    }
+
+    pub async fn set_strategy(&self, method: CaptureMethod) -> Result<()> {
+        if *self.is_recording.read().await {
+            return Err(anyhow::anyhow!("Cannot change strategy while recording"));
+        }
+
+        *self.strategy.write().await = create_strategy(method);
+        log!("📝 Capture method changed to: {:?}", method);
+        Ok(())
     }
 
     pub async fn is_recording(&self) -> bool {
@@ -49,18 +59,15 @@ impl WindowsCaptureRecorder {
         };
 
         let filename = metadata.generate_filename();
-        log!("🎬 Starte Windows.Graphics.Capture Recording: {}", filename);
-
-        // Determine output path
         let output_path = self.get_output_path(&filename).await?;
 
-        // Create capture session
-        let session = CaptureSession::create(window_title, metadata, output_path).await?;
+        log!("🎬 Starting recording: {}", filename);
 
-        // Save session and update state
+        // Use selected strategy
+        let mut strategy = self.strategy.write().await;
+        strategy.start_capture(window_title, metadata, output_path).await?;
+
         *self.is_recording.write().await = true;
-        *self.current_session.write().await = Some(session);
-
         Ok(())
     }
 
@@ -69,24 +76,18 @@ impl WindowsCaptureRecorder {
             return Ok(());
         }
 
-        let session = {
-            let mut current = self.current_session.write().await;
-            current.take()
-        };
+        let mut strategy = self.strategy.write().await;
+        let output_path = strategy.stop_capture().await?;
 
-        if let Some(session) = session {
-            let output_path = session.output_path().clone();
-            session.stop().await?;
-            log!("✅ Capture saved under: {}", output_path.display());
-        }
-
+        log!("✅ Recording saved to: {}", output_path.display());
         *self.is_recording.write().await = false;
+
         Ok(())
     }
 
     pub async fn get_current_metadata(&self) -> Option<RecordingMetadata> {
-        let session = self.current_session.read().await;
-        session.as_ref().map(|s| s.metadata().clone())
+        let strategy = self.strategy.read().await;
+        strategy.get_metadata().cloned()
     }
 
     async fn get_output_path(&self, filename: &str) -> Result<PathBuf> {
@@ -96,7 +97,7 @@ impl WindowsCaptureRecorder {
         let mut output_path = PathBuf::from(&settings.video_path);
 
         if output_path.as_os_str().is_empty() {
-            output_path = dirs::video_dir().unwrap_or_else(|| PathBuf::from("."));
+            output_path = dirs::video_dir().unwrap_or_else(|| PathBuf::from("../../.."));
             output_path.push("Kaptik");
         }
 

@@ -15,6 +15,8 @@
 #include <map>
 #include "libs/toml.hpp"
 #include "IpcClient.h"
+#include <QMediaDevices>
+#include <QAudioDevice>
 
 class SettingsManager : public QObject {
     Q_OBJECT
@@ -33,7 +35,6 @@ public:
     }
 
     Q_INVOKABLE bool connectToRecorder() {
-        std::cout << "connectToRecorder\n";
         if (!m_ipc.connectPipe()) {
             std::cerr << "IPC not available (recorder not running?)\n";
             return false;
@@ -50,7 +51,11 @@ public:
         Key_Microphone,
         Key_SystemSounds,
         Key_TonemapAlgorithm,
-        Key_HdrNitsMode
+        Key_HdrNitsMode,
+        Key_SelectedMicrophone,
+        Key_SelectedOutput,
+        Key_MicrophoneVolume,
+        Key_OutputVolume
     };
     Q_ENUM(Key)
 
@@ -125,10 +130,35 @@ public:
             break;
         }
 
+
+
         m_ipc.sendUpdateSetting(keyStr, valueStr);
         saveToDisk();
         emit settingChanged(key, value);
     }
+
+    Q_INVOKABLE QVariantList availableMicrophones() const {
+        QVariantList list;
+        for (const QAudioDevice &dev : QMediaDevices::audioInputs()) {
+            QVariantMap item;
+            item["text"] = dev.description();
+            item["value"] = QString::fromUtf8(dev.id());
+            list.append(item);
+        }
+        return list;
+    }
+
+    Q_INVOKABLE QVariantList availableOutputs() const {
+        QVariantList list;
+        for (const QAudioDevice &dev : QMediaDevices::audioOutputs()) {
+            QVariantMap item;
+            item["text"] = dev.description();
+            item["value"] = QString::fromUtf8(dev.id());
+            list.append(item);
+        }
+        return list;
+    }
+
 
 signals:
     void settingChanged(Key key, QVariant value);
@@ -149,6 +179,10 @@ private:
         case Key_SystemSounds: return "system_sounds";
         case Key_TonemapAlgorithm: return "tonemap_algorithm";
         case Key_HdrNitsMode:      return "hdr_nits_mode";
+        case Key_SelectedMicrophone: return "input_device";
+        case Key_SelectedOutput: return "output_device";
+        case Key_MicrophoneVolume: return "microphone_volume";
+        case Key_OutputVolume: return "output_volume";
         }
         return {};
     }
@@ -156,7 +190,7 @@ private:
     QVariant defaultValue(Key key) const {
         switch (key) {
         case Key_DarkMode:     return false;
-        case Key_VideoPath:    return "";
+        case Key_VideoPath:    return QString("");
         case Key_Resolution:   return Resolution1080p;
         case Key_FpsLimit:     return Fps60;
         case Key_GameAudio:    return true;
@@ -164,6 +198,10 @@ private:
         case Key_SystemSounds: return false;
         case Key_TonemapAlgorithm: return AcesFitted;
         case Key_HdrNitsMode:      return HdrNitsAuto;
+        case Key_SelectedMicrophone: return QString("");
+        case Key_SelectedOutput: return QString("");
+        case Key_MicrophoneVolume: return 50;
+        case Key_OutputVolume: return 50;
         }
         return {};
     }
@@ -202,7 +240,7 @@ private:
         try {
             auto tbl = toml::parse_file(m_filePath.toStdString());
 
-            for (int k = Key_DarkMode; k <= Key_HdrNitsMode; ++k) {
+            for (int k = Key_DarkMode; k <= Key_OutputVolume; ++k) {
                 Key keyEnum = static_cast<Key>(k);
                 QString key = keyToString(keyEnum);
 
@@ -232,7 +270,7 @@ private:
                     if (val.is_string())
                         m_data[keyEnum] = static_cast<int>(
                             stringToEnum<TonemapAlgorithm>(
-                                QString::fromStdString(val.value_or("Tonemap_AcesFitted")),
+                                QString::fromStdString(val.value_or("AcesFitted")),
                                 AcesFitted));
                     break;
 
@@ -284,7 +322,7 @@ private:
                 if (v.metaType().id() == QMetaType::Bool)
                     tbl.insert(key, v.toBool());
                 else if (v.metaType().id() == QMetaType::QString)
-                    tbl.insert(key, v.toString().toStdString());
+                    tbl.insert(key, toml::value(v.toString().toStdString()));
                 else if (v.metaType().id() == QMetaType::Int)
                     tbl.insert(key, v.toInt());
                 break;

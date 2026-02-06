@@ -16,5 +16,6 @@
         <file>SettingsRow.qml</file>
         <file>SettingsSection.qml</file>
         <file>SettingsComboBox.qml</file>
+        <file>SettingsSlider.qml</file>
     </qresource>
 </RCC>

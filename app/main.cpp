@@ -7,7 +7,6 @@
 #include <qqmlcontext.h>
 #include <QtQuickControls2/QQuickStyle>
 #include <QQuickWindow>
-
 #include "SettingsManager.h"
 #include "clipmodel.h"
 #include "thumbnailprovider.h"
@@ -17,9 +16,7 @@ int main(int argc, char *argv[]) {
     qputenv("QT_MEDIA_BACKEND", "ffmpeg");
 
     QGuiApplication app(argc, argv);
-
     QQuickStyle::setStyle("Fusion");
-
     QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
 
     SettingsManager *settingsSingleton = new SettingsManager();
@@ -27,13 +24,15 @@ int main(int argc, char *argv[]) {
     QQmlApplicationEngine engine;
 
     qmlRegisterSingletonType<SettingsManager>(
-        "App", 1, 0, "Settings",[settingsSingleton](QQmlEngine *, QJSEngine *) -> QObject* {
+        "App", 1, 0, "Settings",
+        [settingsSingleton](QQmlEngine *, QJSEngine *) -> QObject* {
             return settingsSingleton;
-        });
+        }
+        );
 
     ClipModel clipModel;
-    SettingsManager settings;
-    QString videoPath = settings.value(SettingsManager::Key_VideoPath).toString();
+
+    QString videoPath = settingsSingleton->value(SettingsManager::Key_VideoPath).toString();
     if (!videoPath.isEmpty()) {
         clipModel.loadFromPath(videoPath);
     }

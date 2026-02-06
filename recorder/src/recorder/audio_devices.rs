@@ -1,56 +1,44 @@
-use std::process::Command;
-use regex::Regex;
 use crate::settings::Settings;
+use windows::Win32::Media::Audio::eConsole;
+use windows::{
+    core::Result,
+    Win32::Media::Audio::MMDeviceEnumerator,
+    Win32::Media::Audio::{
+        eCapture, eRender, IMMDevice, IMMDeviceEnumerator,
+    },
+    Win32::System::Com::{CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_MULTITHREADED},
+};
 
-pub fn list_audio_devices() -> Vec<String> {
-    let output = Command::new("ffmpeg")
-        .args(&["-list_devices", "true", "-f", "dshow", "-i", "dummy"])
-        .output()
-        .unwrap_or_else(|_| panic!("FFmpeg not found"));
+fn get_default_device_id(role_render: bool) -> Result<String> {
+    unsafe {
+        CoInitializeEx(*std::ptr::null_mut(), COINIT_MULTITHREADED).ok()?;
+        
+        let enumerator: IMMDeviceEnumerator =
+            CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;
 
-    let stderr = String::from_utf8_lossy(&output.stderr);
+        let data_flow = if role_render { eRender } else { eCapture };
 
-    let mut devices = Vec::new();
-    let re = Regex::new(r#""(.+?)" \(audio\)"#).unwrap();
-    for cap in re.captures_iter(&stderr) {
-        devices.push(cap[1].to_string());
+        let device: IMMDevice = enumerator.GetDefaultAudioEndpoint(data_flow, eConsole)?;
+
+        let id = device.GetId()?;
+
+        CoUninitialize();
+        Ok(id.to_string()?)
     }
-    devices
 }
 
-pub fn get_game_audio_device(settings: &Settings) -> Option<String> {
-    let devices = list_audio_devices();
-
-    if let Some(ref saved) = settings.selected_game_audio_device {
-        if devices.iter().any(|d| d == saved) {
-            return Some(saved.clone());
-        }
+pub fn get_game_audio_device(settings: &Settings) -> Result<String> {
+    if settings.selected_game_audio_device.is_empty() {
+        get_default_device_id(true).expect("Error while trying to get default output device");
     }
 
-    for name in &devices {
-        let name_lower = name.to_lowercase();
-        if name_lower.contains("stereo mix") || name_lower.contains("virtual-audio") || name_lower.contains("loopback") {
-            return Some(name.clone());
-        }
-    }
-
-    devices.first().cloned()
+    Ok(settings.selected_game_audio_device.clone())
 }
 
-pub fn get_microphone_device(settings: &Settings) -> Option<String> {
-    let devices = list_audio_devices();
-
-    if let Some(ref saved) = settings.selected_microphone_device {
-        if devices.iter().any(|d| d == saved) {
-            return Some(saved.clone());
-        }
+pub fn get_microphone_device(settings: &Settings) -> Result<String> {
+    if settings.selected_microphone_device.is_empty() {
+        get_default_device_id(true).expect("Error while trying to get default mic device");
     }
 
-    for name in &devices {
-        if name.to_lowercase().contains("microphone") {
-            return Some(name.clone());
-        }
-    }
-
-    devices.first().cloned()
+    Ok(settings.selected_microphone_device.clone())
 }

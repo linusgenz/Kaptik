@@ -4,7 +4,7 @@ use windows::Win32::Graphics::Direct3D::*;
 use windows::Win32::Graphics::Direct3D11::*;
 use windows::core::PCSTR;
 use crate::log;
-use super::d3d;
+use crate::recorder::capture::core::d3d;
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "PascalCase")]

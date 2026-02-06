@@ -1,15 +1,14 @@
+use crate::log;
+use crate::recorder::capture::core::tonemap::{HdrNitsMode, TonemapAlgorithm};
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use once_cell::sync::Lazy;
-use crate::log;
-use crate::recorder::win_recorder::tonemap::{HdrNitsMode, TonemapAlgorithm};
 
-pub static SETTINGS: Lazy<Arc<RwLock<Settings>>> = Lazy::new(|| {
-    Arc::new(RwLock::new(Settings::load()))
-});
+pub static SETTINGS: Lazy<Arc<RwLock<Settings>>> =
+    Lazy::new(|| Arc::new(RwLock::new(Settings::load())));
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -23,11 +22,13 @@ pub struct Settings {
     pub system_sounds: bool,
     pub auto_record: bool,
 
-    pub selected_game_audio_device: Option<String>,
-    pub selected_microphone_device: Option<String>,
+    pub selected_game_audio_device: String,
+    pub selected_microphone_device: String,
+    pub output_volume: u8,
+    pub microphone_volume: u8,
 
     pub tonemap_algorithm: TonemapAlgorithm,
-    pub hdr_nits_mode: HdrNitsMode
+    pub hdr_nits_mode: HdrNitsMode,
 }
 
 impl Default for Settings {
@@ -41,10 +42,12 @@ impl Default for Settings {
             microphone: true,
             system_sounds: false,
             auto_record: true,
-            selected_game_audio_device: None,
-            selected_microphone_device: None,
+            selected_game_audio_device: "".to_string(),
+            selected_microphone_device: "".to_string(),
+            output_volume: 50,
+            microphone_volume: 50,
             tonemap_algorithm: TonemapAlgorithm::default(),
-            hdr_nits_mode: HdrNitsMode::default()
+            hdr_nits_mode: HdrNitsMode::default(),
         }
     }
 }
@@ -58,7 +61,6 @@ pub enum Resolution {
     Resolution4K,
     ResolutionSource,
 }
-
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Fps {
@@ -96,7 +98,8 @@ impl Settings {
     pub fn update(&mut self, key: &str, value: &str) -> Result<(), String> {
         match key {
             "dark_mode" => {
-                self.dark_mode = value.parse::<bool>()
+                self.dark_mode = value
+                    .parse::<bool>()
                     .map_err(|_| format!("Invalid boolean for {}: {}", key, value))?;
             }
             "video_path" => {
@@ -107,28 +110,47 @@ impl Settings {
                     .map_err(|_| format!("Invalid resolution: {}", value))?;
             }
             "fps_limit" => {
-                self.fps_limit = serde_plain::from_str(value)
-                    .map_err(|_| format!("Invalid FPS: {}", value))?;
+                self.fps_limit =
+                    serde_plain::from_str(value).map_err(|_| format!("Invalid FPS: {}", value))?;
             }
             "game_audio" => {
-                self.game_audio = value.parse::<bool>()
+                self.game_audio = value
+                    .parse::<bool>()
                     .map_err(|_| format!("Invalid boolean for {}: {}", key, value))?;
             }
             "microphone" => {
-                self.microphone = value.parse::<bool>()
+                self.microphone = value
+                    .parse::<bool>()
                     .map_err(|_| format!("Invalid boolean for {}: {}", key, value))?;
             }
             "system_sounds" => {
-                self.system_sounds = value.parse::<bool>()
+                self.system_sounds = value
+                    .parse::<bool>()
                     .map_err(|_| format!("Invalid boolean for {}: {}", key, value))?;
             }
             "tonemap_algorithm" => {
                 self.tonemap_algorithm = serde_plain::from_str(value)
                     .map_err(|_| format!("Invalid tonemap algorithm: {}", value))?;
-            },
+            }
             "hdr_nits_mode" => {
                 self.hdr_nits_mode = serde_plain::from_str(value)
                     .map_err(|_| format!("Invalid HDR nits mode: {}", value))?;
+            }
+            "output_device" => {
+                self.selected_game_audio_device = value.to_string();
+            }
+            "input_device" => {
+                self.selected_microphone_device = value.to_string();
+            }
+            "output_volume" => {
+                self.output_volume = value
+                    .parse::<u8>()
+                    .map_err(|_| format!("Invalid integer for {}: {}", key, value))?;
+            }
+            "microphone_volume" => {
+                self.microphone_volume = value
+                    .parse::<u8>()
+                    .map_err(|_| format!("Invalid integer for {}: {}", key, value))?;
             }
             _ => return Err(format!("Unknown setting key: {}", key)),
         }

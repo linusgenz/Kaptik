@@ -1,8 +1,8 @@
 use chrono::Local;
 use serde::{Deserialize, Serialize};
 
-pub mod win_recorder;
 mod audio_devices;
+pub(crate) mod capture;
 
 use crate::game_detection;
 
@@ -27,7 +27,7 @@ pub struct RecordingMetadata {
     pub character_name: Option<String>,
     pub map_name: Option<String>,
     pub round_number: Option<u32>,
-    pub timestamp: chrono::DateTime<chrono::Local>,
+    pub timestamp: chrono::DateTime<Local>,
 }
 
 impl RecordingMetadata {

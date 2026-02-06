@@ -10,6 +10,19 @@ Item {
 
     property string videoLibraryPath: Settings.value(Settings.Key_VideoPath) || ""
 
+    property bool micEnabled: Settings.value(Settings.Key_Microphone)
+    property bool gameAudioEnabled: Settings.value(Settings.Key_GameAudio)
+
+    Connections {
+        target: Settings
+        function onSettingChanged(key, value) {
+            if (key === Settings.Key_Microphone)
+                micEnabled = value
+            if (key === Settings.Key_GameAudio)
+                gameAudioEnabled = value
+        }
+    }
+
     Rectangle {
         anchors.fill: parent
         color: bgPrimary
@@ -295,6 +308,35 @@ Item {
 
                         SettingsRow {
                             Layout.fillWidth: true
+                            label: "Microphone Device"
+                            description: "Select the microphone to record from"
+
+                            SettingsComboBox {
+                                settingsKey: Settings.Key_SelectedMicrophone
+                                model: {
+                                        var list = [{text: "System Default", value: ""}];
+                                        return list.concat(Settings.availableMicrophones());
+                                    }
+                            }
+                        }
+
+                        SettingsRow {
+                            Layout.fillWidth: true
+                            label: "Microphone Volume"
+                            description: "Adjust microphone input level"
+
+                            SettingsSlider {
+                                settingsKey: Settings.Key_MicrophoneVolume
+                                from: 0
+                                to: 100
+                                unit: "%"
+                                enabled: settingsPage.micEnabled
+                                opacity: enabled ? 1.0 : 0.4
+                            }
+                        }
+
+                        SettingsRow {
+                            Layout.fillWidth: true
                             label: "System Sounds"
                             description: "Record notifications and alerts"
 
@@ -333,6 +375,35 @@ Item {
                                         }
                                     }
                                 }
+                            }
+                        }
+
+                        SettingsRow {
+                            Layout.fillWidth: true
+                            label: "Output Device"
+                            description: "Select the output device to capture"
+
+                            SettingsComboBox {
+                                settingsKey: Settings.Key_SelectedOutput
+                                model: {
+                                        var list = [{text: "System Default", value: ""}];
+                                        return list.concat(Settings.availableOutputs());
+                                    }
+                            }
+                        }
+
+                        SettingsRow {
+                            Layout.fillWidth: true
+                            label: "System Audio Volume"
+                            description: "Adjust the volume of the system audio"
+
+                            SettingsSlider {
+                                settingsKey: Settings.Key_OutputVolume
+                                from: 0
+                                to: 100
+                                unit: "%"
+                                enabled: settingsPage.gameAudioEnabled
+                                opacity: enabled ? 1.0 : 0.4
                             }
                         }
                     }

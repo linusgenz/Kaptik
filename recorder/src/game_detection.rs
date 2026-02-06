@@ -134,7 +134,7 @@ impl GameDetector {
             let mut exe_path = vec![0u16; 1024];
             let mut size = exe_path.len() as u32;
 
-            let mut pwstr = PWSTR::from_raw(exe_path.as_mut_ptr());
+            let pwstr = PWSTR::from_raw(exe_path.as_mut_ptr());
 
             if QueryFullProcessImageNameW(process, PROCESS_NAME_WIN32, pwstr, &mut size).is_ok() {
                 let path = String::from_utf16_lossy(&exe_path[..size as usize]);

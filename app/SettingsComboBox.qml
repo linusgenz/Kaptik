@@ -61,7 +61,7 @@ ComboBox {
 
     delegate: ItemDelegate {
         id: delegateItem
-        width: control.width
+        width: control.width - 8
         height: control.itemHeight
         hoverEnabled: true
         highlighted: control.highlightedIndex === index || hovered
@@ -84,6 +84,7 @@ ComboBox {
 
         background: Rectangle {
             color: bgSecondary
+            clip: true
 
             Rectangle {
                 anchors.fill: parent
