@@ -1,0 +1,13 @@
+[package]
+name = "tray"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+rmp-serde = "1"
+serde_repr = "0.1.20"
+tray-icon = "0.21.3"
+tao = "0.34.5"
+tokio = { version = "1.49", features = ["full"] }
