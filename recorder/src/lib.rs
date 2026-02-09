@@ -1,0 +1,7 @@
+pub mod app;
+pub mod game_integration;
+pub mod recorder;
+pub mod settings;
+pub mod logger;
+pub mod ipc;
+pub mod game_detection;

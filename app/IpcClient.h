@@ -11,10 +11,11 @@
 #include <windows.h>
 #include <msgpack.hpp>
 
-enum class CommandType {
-    StartRecording,
-    StopRecording,
-    UpdateSetting
+enum class CommandType : uint8_t {
+    StartRecording = 0,
+    StopRecording = 1,
+    UpdateSetting = 2,
+    ShutdownUI = 68
 };
 MSGPACK_ADD_ENUM(CommandType);
 
@@ -31,7 +32,7 @@ struct Command {
     CommandType type;
     std::optional<UpdateSetting> update;
 
-    MSGPACK_DEFINE(type, update);
+    MSGPACK_DEFINE_MAP(type, update);
 };
 
 
@@ -42,14 +43,17 @@ public:
 
     bool connectPipe();
     void disconnectPipe();
+    void startListening();
 
     void sendStartRecording();
     void sendStopRecording();
     void sendUpdateSetting(const QString& key, const QString& value);
-
+signals:
+    void shutdownReceived();
 private:
     HANDLE m_pipe = INVALID_HANDLE_VALUE;
     bool writeMessage(const QByteArray& msg);
+    void readLoop();
 };
 
 #endif // IPCCLIENT_H

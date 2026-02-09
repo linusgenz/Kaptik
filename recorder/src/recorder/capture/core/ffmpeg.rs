@@ -5,6 +5,7 @@ use std::io::{BufRead, BufWriter, Seek, SeekFrom, Write};
 use std::path::PathBuf;
 use std::sync::mpsc;
 use std::thread;
+use uuid::Uuid;
 use windows::Win32::Graphics::Direct3D11::*;
 use windows::Win32::Graphics::Dxgi::Common::DXGI_FORMAT_B8G8R8A8_UNORM;
 use windows::Win32::Media::Audio::WAVEFORMATEX;
@@ -47,6 +48,8 @@ pub struct FfmpegEncoder {
     frame_count: u64,
     last_log_time: std::time::Instant,
     recording_start: std::time::Instant,
+
+    recording_uuid: Uuid
 }
 
 impl FfmpegEncoder {
@@ -64,6 +67,7 @@ impl FfmpegEncoder {
         tonemap: Option<ToneMapRenderer>,
         game_audio_format: Option<WAVEFORMATEX>,
         microphone_format: Option<WAVEFORMATEX>,
+        recording_uuid: Uuid
     ) -> Result<Self> {
         let mut config_dir = dirs::config_dir().unwrap();
         config_dir.push("Kaptik");
@@ -96,7 +100,8 @@ impl FfmpegEncoder {
 
         let (audio_writer, temp_audio_path, audio_sample_rate, audio_channels) =
             if game_audio_format.is_some() || microphone_format.is_some() {
-                let audio_path = config_dir.with_extension("temp.wav");
+                let mut audio_path = config_dir.clone();
+                audio_path.push("temp.wav");
                 let file = File::create(&audio_path)?;
                 let mut writer = BufWriter::with_capacity(2 * 1024 * 1024, file);
 
@@ -140,6 +145,7 @@ impl FfmpegEncoder {
             frame_count: 0,
             last_log_time: std::time::Instant::now(),
             recording_start: std::time::Instant::now(),
+            recording_uuid
         })
     }
 
@@ -387,6 +393,9 @@ impl FfmpegEncoder {
     }
 
     fn mux_audio_to_video(&self, temp_audio_path: &PathBuf) -> Result<()> {
+        let recording_metadata = format!("recording_id={}", self.recording_uuid);
+        let metadata_arg = format!("comment={}", recording_metadata);
+
         let args = vec![
             "-i",
             self.temp_video_path.to_str().unwrap(),
@@ -406,6 +415,7 @@ impl FfmpegEncoder {
             "1",
             "-af",
             "aresample=async=1:first_pts=0",
+            "-metadata", &metadata_arg,
             "-shortest",
             "-y",
             self.output_path.to_str().unwrap(),

@@ -44,6 +44,7 @@ Item {
                             root.currentVideoSource = model.path
                             root.currentVideoIndex = index
                             root.currentView = 1
+                            root.videoSelected(model.apmPath)
                         }
                     }
 

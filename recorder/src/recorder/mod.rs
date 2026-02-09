@@ -1,8 +1,10 @@
 use chrono::Local;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 mod audio;
 pub(crate) mod capture;
+pub mod apm;
 
 use crate::game_detection;
 
@@ -23,6 +25,7 @@ pub struct RecordingState {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecordingMetadata {
+    pub recording_id: Uuid,
     pub game_name: String,
     pub character_name: Option<String>,
     pub map_name: Option<String>,
@@ -33,6 +36,7 @@ pub struct RecordingMetadata {
 impl RecordingMetadata {
     pub fn new(game_name: String) -> Self {
         Self {
+            recording_id: Uuid::new_v4(),
             game_name,
             character_name: None,
             map_name: None,
@@ -48,6 +52,7 @@ impl RecordingMetadata {
         round_number: Option<u32>,
     ) -> Self {
         Self {
+            recording_id: Uuid::new_v4(),
             game_name,
             character_name,
             map_name,

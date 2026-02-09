@@ -117,6 +117,7 @@ impl CaptureSession {
             tonemap,
             game_audio_format,
             microphone_format,
+            metadata.recording_id
         )?)));
 
         audio::start_audio_tasks(

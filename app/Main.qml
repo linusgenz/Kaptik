@@ -10,7 +10,7 @@ ApplicationWindow {
     visible: true
     width: 1200
     height: 800
-    title: "Game Capture"
+    title: "Kaptik"
 
     // Theme management
     property bool darkMode: Settings.value(Settings.Key_DarkMode)
@@ -56,6 +56,7 @@ ApplicationWindow {
             videoSelectedNotPlaying = false
             videoHasBeenPlayed = false
         }
+        playerPage.mediaPlayer.source = currentVideoSource
     }
 
     onCurrentViewChanged: {
@@ -63,6 +64,8 @@ ApplicationWindow {
             playerPage.videoPlayerArea.forceActiveFocus()
         }
     }
+
+    signal videoSelected(string apmPath)
 
     color: bgPrimary
 
@@ -192,15 +195,21 @@ ApplicationWindow {
             }
         }
 
-        // Main Content Stack
         StackLayout {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            currentIndex: currentView
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                currentIndex: currentView
 
-            GridPage { id: gridPage }
-            PlayerPage { id: playerPage }
-            SettingsPage { id: settingsPage }
-        }
+                GridPage { id: gridPage }
+                PlayerPage { id: playerPage }
+                SettingsPage { id: settingsPage }
+
+                Connections {
+                    target: root
+                    function onVideoSelected(apmPath) {
+                        playerPage.loadApmDataForVideo(apmPath)
+                    }
+                }
+            }
     }
 }

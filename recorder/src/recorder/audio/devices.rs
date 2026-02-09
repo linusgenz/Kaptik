@@ -11,7 +11,7 @@ use windows::{
 
 fn get_default_device_id(role_render: bool) -> Result<String> {
     unsafe {
-        CoInitializeEx(*std::ptr::null_mut(), COINIT_MULTITHREADED).ok()?;
+        CoInitializeEx(None, COINIT_MULTITHREADED).ok()?;
 
         let enumerator: IMMDeviceEnumerator =
             CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;

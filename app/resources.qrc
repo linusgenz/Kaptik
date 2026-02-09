@@ -7,6 +7,8 @@
         <file>icons/view-more-symbolic.svg</file>
         <file>icons/weather-clear-night-symbolic.svg</file>
         <file>icons/weather-clear-symbolic.svg</file>
+        <file>icons/audio-volume-low-symbolic.svg</file>
+        <file>icons/audio-volume-medium-symbolic.svg</file>
     </qresource>
     <qresource prefix="/">
         <file>BaseRoundButton.qml</file>
@@ -17,5 +19,6 @@
         <file>SettingsSection.qml</file>
         <file>SettingsComboBox.qml</file>
         <file>SettingsSlider.qml</file>
+        <file>ApmGraphView.qml</file>
     </qresource>
 </RCC>

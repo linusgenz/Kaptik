@@ -7,7 +7,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Quick QuickControls2 Svg Multimedia)
+find_package(Qt6 REQUIRED COMPONENTS Quick QuickControls2 Svg Multimedia Core5Compat)
 
 qt_standard_project_setup(REQUIRES 6.8)
 
@@ -25,6 +25,8 @@ qt_add_executable(appKaptik
     thumbnailprovider.h
     IpcClient.cpp
     IpcClient.h
+    ApmLoader.cpp
+    ApmLoader.h
     ${RESOURCES}
 )
 
@@ -40,13 +42,24 @@ qt_add_qml_module(appKaptik
         SettingsComboBox.qml
         SettingsSlider.qml
         BaseRoundButton.qml
+        ApmGraphView.qml
         RESOURCES resources.qrc
 )
 
 set(LIBS_DIR "G:/Kaptik/app/libs")
 target_include_directories(appKaptik PRIVATE ${LIBS_DIR})
 
-target_link_libraries(appKaptik PRIVATE Qt6::Quick Qt6::QuickControls2 Qt6::Svg Qt6::Multimedia)
+target_link_libraries(appKaptik PRIVATE
+    Qt6::Quick
+    Qt6::QuickControls2
+    Qt6::Svg
+    Qt6::Multimedia
+    Qt6::Core5Compat
+    propsys
+    ole32
+    shell32
+)
+
 
 include(GNUInstallDirs)
 install(TARGETS appKaptik

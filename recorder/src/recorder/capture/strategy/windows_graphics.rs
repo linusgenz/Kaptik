@@ -3,7 +3,6 @@ use async_trait::async_trait;
 use std::path::PathBuf;
 
 use super::{CaptureStrategy, RecordingMetadata};
-use crate::log;
 use crate::recorder::capture::windows_graphics::CaptureSession;
 
 pub struct WindowsGraphicsCaptureStrategy {
@@ -24,8 +23,6 @@ impl CaptureStrategy for WindowsGraphicsCaptureStrategy {
         metadata: RecordingMetadata,
         output_path: PathBuf,
     ) -> Result<()> {
-        log!("🎬 Starting Windows.Graphics.Capture");
-
         let session = CaptureSession::create(window_title, metadata, output_path).await?;
         self.session = Some(session);
 
@@ -36,7 +33,7 @@ impl CaptureStrategy for WindowsGraphicsCaptureStrategy {
         if let Some(session) = self.session.take() {
             let output_path = session.output_path().clone();
             session.stop().await?;
-            log!("✅ Windows.Graphics.Capture stopped");
+
             Ok(output_path)
         } else {
             Err(anyhow::anyhow!("No active session"))

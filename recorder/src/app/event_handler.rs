@@ -27,7 +27,7 @@ pub fn spawn(
                     let auto_record = settings::get_setting(|s| s.auto_record).await;
 
                     if auto_record && !state.is_recording {
-                        log!("🎯 Auto-Record aktiviert, warte auf Runde...");
+                        log!("Auto-Record activated, waiting for round...");
 
                         let rec = recorder.clone();
                         let mgr = integration_manager.clone();
@@ -45,7 +45,7 @@ pub fn spawn(
 
                                 if mgr.is_in_round().await {
                                     let game_state = mgr.get_current_state().await;
-                                    log!("▶️  Runde erkannt! Starte Recording...");
+                                    log!("Round detected! Start recording...");
 
                                     // Isolate the !Send operation
                                     let window_title_clone = window_title.clone();
@@ -58,16 +58,22 @@ pub fn spawn(
                                     .await;
 
                                     match result {
-                                        Ok(Ok(())) => log!("✅ Recording gestartet"),
-                                        Ok(Err(e)) => log!("❌ Recording Start Fehler: {}", e),
-                                        Err(e) => log!("❌ Task Fehler: {}", e),
+                                        Ok(Ok(())) => {
+                                            log!("✅ Recording started");
+                                        }
+                                        Ok(Err(e)) => {
+                                            log!("❌ Recording start error: {}", e);
+                                        }
+                                        Err(e) => {
+                                            log!("❌ Task error: {}", e);
+                                        }
                                     }
                                     break;
                                 }
 
                                 if attempts >= max_attempts {
                                     log!(
-                                        "⚠️ Keine Runde erkannt nach {}s, starte Recording trotzdem",
+                                        "⚠️ No round detected after {} seconds, start recording anyway",
                                         max_attempts
                                     );
 
@@ -80,9 +86,15 @@ pub fn spawn(
                                     .await;
 
                                     match result {
-                                        Ok(Ok(())) => log!("✅ Recording gestartet"),
-                                        Ok(Err(e)) => log!("❌ Recording Start Fehler: {}", e),
-                                        Err(e) => log!("❌ Task Fehler: {}", e),
+                                        Ok(Ok(())) => {
+                                            log!("✅ Recording started");
+                                        }
+                                        Ok(Err(e)) => {
+                                            log!("❌ Recording start error: {}", e);
+                                        }
+                                        Err(e) => {
+                                            log!("❌ Task error: {}", e);
+                                        }
                                     }
                                     break;
                                 }
@@ -100,7 +112,7 @@ pub fn spawn(
                     state.active_games.retain(|g| g.name != name);
 
                     if state.is_recording && state.current_game.as_ref() == Some(&name) {
-                        log!("⏹️  Game beendet, stoppe Recording");
+                        log!("⏹️ Game over, stop recording");
 
                         let rec = recorder.clone();
                         drop(state); // Release lock before blocking operation
@@ -113,9 +125,15 @@ pub fn spawn(
                         .await;
 
                         match result {
-                            Ok(Ok(())) => log!("✅ Recording gestoppt"),
-                            Ok(Err(e)) => log!("❌ Recording Stop Fehler: {}", e),
-                            Err(e) => log!("❌ Task Fehler: {}", e),
+                            Ok(Ok(())) => {
+                                log!("✅ Recording stopped");
+                            }
+                            Ok(Err(e)) => {
+                                log!("❌ Recording stop error: {}", e);
+                            }
+                            Err(e) => {
+                                log!("❌ Task error: {}", e);
+                            }
                         }
 
                         // Re-acquire lock
@@ -126,10 +144,10 @@ pub fn spawn(
                 }
 
                 RecorderEvent::StartRecording(_requested_game_name) => {
-                    log!("▶️  Manueller Start Recording");
+                    log!("▶️ Manual start recording");
 
                     if state.is_recording {
-                        log!("⚠️ Bereits am Aufnehmen");
+                        log!("⚠️ Already recording");
                         continue;
                     }
 
@@ -154,24 +172,28 @@ pub fn spawn(
 
                         match result {
                             Ok(Ok(())) => {
-                                log!("✅ Recording gestartet");
+                                log!("✅ Recording started");
                                 let mut state = recording_state.write().await;
                                 state.is_recording = true;
                                 state.current_game = Some(game_name);
                             }
-                            Ok(Err(e)) => log!("❌ Recording Start Fehler: {}", e),
-                            Err(e) => log!("❌ Task Fehler: {}", e),
+                            Ok(Err(e)) => {
+                                log!("❌ Recording start error: {}", e);
+                            }
+                            Err(e) => {
+                                log!("❌ Task error: {}", e);
+                            }
                         }
                     } else {
-                        log!("⚠️  Kein aktives Game gefunden");
+                        log!("⚠️ No active game found");
                     }
                 }
 
                 RecorderEvent::StopRecording => {
-                    log!("⏹️  Manueller Stop Recording");
+                    log!("⏹️ Manual Stop Recording");
 
                     if !state.is_recording {
-                        log!("⚠️  Kein aktives Recording");
+                        log!("⚠️ No active recording");
                         continue;
                     }
 
@@ -186,9 +208,15 @@ pub fn spawn(
                     .await;
 
                     match result {
-                        Ok(Ok(())) => log!("✅ Recording gestoppt"),
-                        Ok(Err(e)) => log!("❌ Recording Stop Fehler: {}", e),
-                        Err(e) => log!("❌ Task Fehler: {}", e),
+                        Ok(Ok(())) => {
+                            log!("✅ Recording stopped");
+                        }
+                        Ok(Err(e)) => {
+                            log!("❌ Recording stop error: {}", e);
+                        }
+                        Err(e) => {
+                            log!("❌ Task error: {}", e);
+                        }
                     }
 
                     let mut state = recording_state.write().await;

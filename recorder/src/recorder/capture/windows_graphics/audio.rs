@@ -20,7 +20,6 @@ pub(crate) fn init_captures(
 )> {
     let (game_audio_capture, game_audio_format) = if settings.game_audio || settings.system_sounds {
         if let Ok(device_id) = devices::get_game_audio_device(settings) {
-            log!("Initialize WASAPI game audio: {}", device_id);
             let capture = WasapiCapture::new(&device_id, true)?; // Loopback
             let format = *capture.get_format();
             (Some(Arc::new(Mutex::new(capture))), Some(format))
@@ -33,7 +32,6 @@ pub(crate) fn init_captures(
 
     let (microphone_capture, microphone_format) = if settings.microphone {
         if let Ok(device_id) = devices::get_microphone_device(settings) {
-            log!("Initialize WASAPI microphone: {}", device_id);
             let capture = WasapiCapture::new(&device_id, false)?; // No loopback
             let format = *capture.get_format();
             (Some(Arc::new(Mutex::new(capture))), Some(format))

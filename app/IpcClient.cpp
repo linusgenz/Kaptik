@@ -5,6 +5,7 @@
 
 #include "IpcClient.h"
 #include <iostream>
+#include <thread>
 
 IpcClient::IpcClient(QObject* parent) : QObject(parent) {}
 
@@ -15,7 +16,7 @@ bool IpcClient::connectPipe() {
     while (true) {
         m_pipe = CreateFileA(
             R"(\\.\pipe\kaptik_pipe)",
-            GENERIC_WRITE,
+            GENERIC_READ | GENERIC_WRITE,
             0,
             nullptr,
             OPEN_EXISTING,
@@ -104,3 +105,55 @@ void IpcClient::sendUpdateSetting(const QString& key, const QString& value) {
     writeMessage(QByteArray(buffer.data(), int(buffer.size())));
 }
 
+void IpcClient::startListening() {
+    std::thread([this]() {
+        readLoop();
+    }).detach();
+}
+
+void IpcClient::readLoop() {
+    while (m_pipe != INVALID_HANDLE_VALUE) {
+        uint32_t len = 0;
+        DWORD bytesRead = 0;
+
+        if (!ReadFile(m_pipe, &len, sizeof(uint32_t), &bytesRead, nullptr)) {
+            std::cerr << "Pipe read error, disconnecting\n";
+            break;
+        }
+
+        if (bytesRead != sizeof(uint32_t)) {
+            break;
+        }
+
+        QByteArray payload(len, 0);
+        if (!ReadFile(m_pipe, payload.data(), len, &bytesRead, nullptr)) {
+            break;
+        }
+
+        if (bytesRead != len) {
+            break;
+        }
+
+        try {
+            msgpack::object_handle oh = msgpack::unpack(payload.data(), payload.size());
+
+            // Zeige das geparste MessagePack-Objekt
+            std::cout << "🔍 Parsed msgpack object: " << oh.get() << std::endl;
+
+            Command cmd = oh.get().as<Command>();
+
+            std::cout << "✅ Command type: " << static_cast<int>(cmd.type) << std::endl;
+
+            if (cmd.type == CommandType::ShutdownUI) {
+                std::cout << "🛑 ShutdownUI received, closing app" << std::endl;
+                disconnectPipe();
+                QMetaObject::invokeMethod(this, [this]() {
+                    emit shutdownReceived();
+                }, Qt::QueuedConnection);
+                break;
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "Error: " << e.what() << std::endl;
+        }
+    }
+}

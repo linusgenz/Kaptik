@@ -6,7 +6,8 @@
 #ifdef Q_OS_WIN
 
 QImage getWindowsThumbnail(const QString &filePath, int size = 256);
-QString getWindowsVideoDuration(const QString &filePath);
-
+void getWindowsVideoDuration(const QString &filePath, QString &duration, quint64 &durationMs);
+QString getRecordingIdFromVideo(const QString& videoPath);
+QString getApmPathForRecording(const QString& recordingId);
 #endif
 #endif

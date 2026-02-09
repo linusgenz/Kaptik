@@ -2,3 +2,7 @@ app/libs/boost
 app/libs/msgpack
 recorder/target
 .idea
+out
+tray/target
+build
+.vs

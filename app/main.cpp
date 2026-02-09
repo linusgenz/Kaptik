@@ -10,6 +10,7 @@
 #include "SettingsManager.h"
 #include "clipmodel.h"
 #include "thumbnailprovider.h"
+#include "ApmLoader.h"
 
 int main(int argc, char *argv[]) {
     qputenv("QSG_RENDER_LOOP", "basic");
@@ -22,6 +23,8 @@ int main(int argc, char *argv[]) {
     SettingsManager *settingsSingleton = new SettingsManager();
 
     QQmlApplicationEngine engine;
+
+    qmlRegisterType<ApmLoader>("Kaptik", 1, 0, "ApmLoader");
 
     qmlRegisterSingletonType<SettingsManager>(
         "App", 1, 0, "Settings",
@@ -46,6 +49,10 @@ int main(int argc, char *argv[]) {
         return -1;
 
     settingsSingleton->connectToRecorder();
+
+    QObject::connect(settingsSingleton, &SettingsManager::recorderShutdown,
+                     qApp, &QCoreApplication::quit);
+
 
     return app.exec();
 }

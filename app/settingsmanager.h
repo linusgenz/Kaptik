@@ -39,6 +39,11 @@ public:
             std::cerr << "IPC not available (recorder not running?)\n";
             return false;
         }
+        m_ipc.startListening();
+
+        QObject::connect(&m_ipc, &IpcClient::shutdownReceived,
+                         this, &SettingsManager::recorderShutdown);
+
         return true;
     }
 
@@ -162,6 +167,7 @@ public:
 
 signals:
     void settingChanged(Key key, QVariant value);
+    void recorderShutdown();
 
 private:
     IpcClient m_ipc;

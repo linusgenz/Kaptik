@@ -318,7 +318,7 @@ impl GameDetector {
             score += 1;
         }
 
-        if unsafe { Self::has_d3d11_or_vulkan(hwnd) } {
+        if { Self::has_d3d11_or_vulkan() } {
             score += 1;
         }
 
@@ -360,10 +360,12 @@ impl GameDetector {
         }
     }
 
-    unsafe fn has_d3d11_or_vulkan(hwnd: HWND) -> bool {
-        match DwmIsCompositionEnabled() {
-            Ok(enabled) => enabled.as_bool(),
-            Err(_) => false,
+    fn has_d3d11_or_vulkan() -> bool {
+        unsafe {
+            match DwmIsCompositionEnabled() {
+                Ok(enabled) => enabled.as_bool(),
+                Err(_) => false,
+            }
         }
     }
 
@@ -372,12 +374,14 @@ impl GameDetector {
     }
 }
 
-unsafe extern "system" fn enum_windows_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
-    let games = &mut *(lparam.0 as *mut Vec<GameProcess>);
+extern "system" fn enum_windows_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
+    unsafe {
+        let games = &mut *(lparam.0 as *mut Vec<GameProcess>);
 
-    if let Some(game) = GameDetector::is_game_process(hwnd) {
-        games.push(game);
+        if let Some(game) = GameDetector::is_game_process(hwnd) {
+            games.push(game);
+        }
+
+        TRUE
     }
-
-    TRUE
 }

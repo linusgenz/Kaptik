@@ -44,7 +44,8 @@ fn main() {
                 print_usage(&args[0]);
                 std::process::exit(1);
             }
-            export_csv(&args[2]);
+            let output_file = args.get(3).map(|s| s.as_str());
+            export_csv(&args[2], output_file);
         }
         "help" | "--help" | "-h" => {
             print_usage(&args[0]);
@@ -127,7 +128,7 @@ fn show_stats(path: &str) {
         let mid = sorted_apms.len() / 2;
         (sorted_apms[mid - 1] + sorted_apms[mid]) as f64 / 2.0
     } else {
-        sorted_apms[sorted_apms.len() / 2] as f64 // <- Fixed: added as f64
+        sorted_apms[sorted_apms.len() / 2] as f64
     };
 
     println!("📊 APM Statistics for: {}", path);
@@ -196,14 +197,12 @@ fn show_graph(path: &str) {
         println!();
     }
 
-    // X-axis
     print!("     └");
     for _ in 0..buckets.len() {
         print!("─");
     }
     println!();
 
-    // Time labels
     let total_time = data.series.last().map(|(t, _)| *t).unwrap_or(0.0);
     println!(
         "       0s{:>width$}",
@@ -212,14 +211,34 @@ fn show_graph(path: &str) {
     );
 }
 
-fn export_csv(path: &str) {
+fn export_csv(path: &str, output: Option<&str>) {
     let data = load_file(path);
 
-    println!("time_seconds,time_formatted,apm");
+    let csv_content = generate_csv(&data);
+
+    if let Some(output_path) = output {
+        match std::fs::write(output_path, csv_content) {
+            Ok(_) => {
+                eprintln!("✅ CSV exported to: {}", output_path);
+            }
+            Err(e) => {
+                eprintln!("❌ Failed to write CSV file: {}", e);
+                std::process::exit(1);
+            }
+        }
+    } else {
+        print!("{}", csv_content);
+    }
+}
+
+fn generate_csv(data: &APMData) -> String {
+    let mut output = String::from("time_seconds,time_formatted,apm\n");
 
     for (time, apm) in &data.series {
         let minutes = (time / 60.0) as u32;
         let seconds = (time % 60.0) as u32;
-        println!("{:.2},{:02}:{:02},{}", time, minutes, seconds, apm);
+        output.push_str(&format!("{:.2},{:02}:{:02},{}\n", time, minutes, seconds, apm));
     }
+
+    output
 }

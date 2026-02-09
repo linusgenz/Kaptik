@@ -3,20 +3,20 @@ mod game_detection_task;
 mod ipc_server;
 
 use std::sync::Arc;
-use std::time::Duration;
-
 use tokio::sync::mpsc;
+use tokio::sync::watch;
 
 use crate::game_integration::manager::GameIntegrationManager;
 use crate::log;
-use crate::recorder::capture::WindowsCaptureRecorder;
 use crate::recorder::capture::strategy::CaptureMethod;
+use crate::recorder::capture::WindowsCaptureRecorder;
 use crate::recorder::{RecorderEvent, RecordingState};
 
 pub async fn run() -> anyhow::Result<()> {
     log!("🎬 Kaptik Recorder started");
 
     let (event_tx, event_rx) = mpsc::unbounded_channel::<RecorderEvent>();
+    let (shutdown_tx, mut shutdown_rx) = watch::channel(false);
 
     let integration_manager = Arc::new(GameIntegrationManager::new());
     integration_manager.start_monitoring().await;
@@ -34,11 +34,12 @@ pub async fn run() -> anyhow::Result<()> {
         recorder.clone(),
         integration_manager.clone(),
     );
-    ipc_server::spawn(event_tx, recording_state);
+    ipc_server::spawn(event_tx, recording_state, shutdown_tx.clone());
 
     log!("✅ Recorder running");
 
-    loop {
-        tokio::time::sleep(Duration::from_secs(60)).await;
-    }
+    shutdown_rx.changed().await?;
+    log!("👋 Recorder shutdown complete");
+    Ok(())
 }
+

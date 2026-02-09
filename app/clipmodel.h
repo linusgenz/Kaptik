@@ -10,8 +10,10 @@ struct Clip {
     QString name;
     QString path;
     QString duration;
+    qint64  durationMs;
     QString date;
     QImage thumbnail;
+    QString apmPath;
 };
 
 class ClipModel : public QAbstractListModel {
@@ -23,7 +25,9 @@ public:
         PathRole,
         DateRole,
         DurationRole,
-        ThumbnailRole
+        DurationMsRole,
+        ThumbnailRole,
+        ApmPathRole
     };
     explicit ClipModel(QObject* parent = nullptr);
 
@@ -34,6 +38,7 @@ public:
     QHash<int, QByteArray> roleNames() const override;
 
     QImage thumbnailAt(int index) const;
+    Q_INVOKABLE int getDurationMs(int index) const;
 
     Q_INVOKABLE void loadFromPath(const QString &dirPath);
 

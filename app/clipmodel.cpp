@@ -23,8 +23,10 @@ QVariant ClipModel::data(const QModelIndex &index, int role) const {
     case PathRole: return clip.path;
     case DateRole: return clip.date;
     case DurationRole: return clip.duration;
+    case DurationMsRole: return clip.durationMs;
     case ThumbnailRole:
         return QString("image://thumbnails/%1").arg(index.row());
+    case ApmPathRole: return clip.apmPath;
     default: return {};
     }
 }
@@ -35,7 +37,9 @@ QHash<int, QByteArray> ClipModel::roleNames() const {
         {PathRole, "path"},
         {DateRole, "date"},
         {DurationRole, "duration"},
-        {ThumbnailRole, "thumbnail"}
+        {DurationMsRole, "durationMs"},
+        {ThumbnailRole, "thumbnail"},
+        {ApmPathRole, "apmPath"}
     };
 }
 
@@ -44,6 +48,13 @@ QImage ClipModel::thumbnailAt(int index) const {
         return QImage();
     return m_clips[index].thumbnail;
 }
+
+Q_INVOKABLE int ClipModel::getDurationMs(int index) const {
+    if (index < 0 || index >= m_clips.size())
+        return 0;
+    return m_clips[index].durationMs;
+}
+
 
 void ClipModel::loadFromPath(const QString &dirPath) {
     beginResetModel();
@@ -64,8 +75,19 @@ void ClipModel::loadFromPath(const QString &dirPath) {
         clip.name = fileInfo.baseName();
         clip.path = fileInfo.absoluteFilePath();
         clip.date = fileInfo.lastModified().toString("dd.MM.yyyy hh:mm");
-        clip.duration = getWindowsVideoDuration(clip.path);
+        quint64 durationMs = 0;
+        QString durationStr;
+        getWindowsVideoDuration(clip.path, durationStr, durationMs);
+        clip.duration = durationStr;
+        clip.durationMs = durationMs;
         clip.thumbnail = getWindowsThumbnail(clip.path, 320);
+
+        QString recordingId = getRecordingIdFromVideo(clip.path);
+
+        if (!recordingId.isEmpty()) {
+            clip.apmPath = getApmPathForRecording(recordingId);
+        }
+
         m_clips.append(clip);
     }
 

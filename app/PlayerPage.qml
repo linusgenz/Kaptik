@@ -10,6 +10,12 @@ RowLayout {
     property alias mediaPlayer: mediaPlayer
     property alias videoPlayerArea: videoPlayerArea
 
+    ApmLoader {
+        id: apmLoader
+    }
+
+    property var currentApmData: []
+
     // Sidebar
     Rectangle {
         Layout.preferredWidth: 280
@@ -48,7 +54,6 @@ RowLayout {
                                ? Qt.rgba(accentBlue.r, accentBlue.g, accentBlue.b, darkMode ? 0.25 : 0.18)
                                : (parent.hovered ? hoverBg : "transparent")
                         radius: 6
-                        //   Behavior on color { ColorAnimation { duration: 120 } }
                     }
 
                     MouseArea {
@@ -57,10 +62,20 @@ RowLayout {
                         cursorShape: Qt.PointingHandCursor
 
                         onClicked: {
+                            if (model.path === root.currentVideoSource)
+                                return;
+
+                            if (mediaPlayer.playbackState !== MediaPlayer.StoppedState) {
+                                mediaPlayer.stop();
+                            }
+
                             root.currentVideoSource = model.path
                             root.currentVideoIndex = index
+
+                            loadApmDataForVideo(model.apmPath)
                         }
                     }
+
 
                     contentItem: ColumnLayout {
                         spacing: 4
@@ -114,6 +129,8 @@ RowLayout {
         Layout.fillHeight: true
         color: bgPrimary
 
+        property real lastVolume: 1.0
+
         focus: true
         Keys.enabled: root.currentView === 1
 
@@ -127,15 +144,14 @@ RowLayout {
                                 } else {
                                     mediaPlayer.play()
                                 }
-
                                 event.accepted = true
                                 break
                                 case Qt.Key_Left:
-                                mediaPlayer.position = Math.max(0, mediaPlayer.position - 5000) // -5s
+                                mediaPlayer.position = Math.max(0, mediaPlayer.position - 5000)
                                 event.accepted = true
                                 break
                                 case Qt.Key_Right:
-                                mediaPlayer.position = Math.min(mediaPlayer.duration, mediaPlayer.position + 5000) // +5s
+                                mediaPlayer.position = Math.min(mediaPlayer.duration, mediaPlayer.position + 5000)
                                 event.accepted = true
                                 break
                             }
@@ -336,159 +352,161 @@ RowLayout {
                 }
             }
 
-            // Video controls
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 72
+                Layout.preferredHeight: currentApmData.length > 0 ? 140 : 80
                 color: bgSecondary
                 radius: 12
 
-                RowLayout {
+                Behavior on Layout.preferredHeight {
+                    NumberAnimation {
+                        duration: 200
+                        easing.type: Easing.OutQuad
+                    }
+                }
+
+                ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: 12
+                    anchors.margins: 16
                     spacing: 12
 
-                    BaseRoundButton {
-                        width: 24
-                        height: 24
-                        iconWidth: 16
-                        iconHeight: 16
-                        iconSource: mediaPlayer.playbackState === MediaPlayer.PlayingState
-                                    ? "qrc:/resources/icons/media-playback-pause-symbolic.svg"
-                                    : "qrc:/resources/icons/media-playback-start-symbolic.svg"
-                        buttonEnabled: root.currentVideoSource !== ""
+                    ApmGraphView {
+                        id: apmGraph
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 48
+                        visible: currentApmData.length > 0
 
-                        onClicked: {
-                            if (mediaPlayer.playbackState === MediaPlayer.PlayingState) {
-                                mediaPlayer.pause()
+                        apmData: currentApmData
+                        currentPosition: mediaPlayer.position
+                        graphColor: accentBlue
+                        showGrid: false
+                    }
+
+                    Slider {
+                        id: progressSlider
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 100
+                        value: 0
+                        enabled: root.currentVideoSource !== ""
+                        hoverEnabled: true
+
+                        property bool seeking: false
+                        property bool wasPlaying: false
+                        property real seekPosition: 0
+
+                        Connections {
+                            target: mediaPlayer
+                            function onPositionChanged() {
+                                if (!progressSlider.seeking && mediaPlayer.duration > 0) {
+                                    progressSlider.value = (mediaPlayer.position / mediaPlayer.duration) * 100
+                                }
+                            }
+                        }
+
+                        onPressedChanged: {
+                            if (pressed) {
+                                seeking = true
+                                wasPlaying = mediaPlayer.playbackState === MediaPlayer.PlayingState
+                                if (wasPlaying) {
+                                    mediaPlayer.pause()
+                                }
                             } else {
-                                mediaPlayer.play()
+                                seeking = false
+                                if (wasPlaying) {
+                                    mediaPlayer.play()
+                                }
+                            }
+                        }
+
+                        onValueChanged: {
+                            if (seeking && mediaPlayer.duration > 0) {
+                                seekPosition = (value / 100) * mediaPlayer.duration
+                            }
+                        }
+
+                        onMoved: {
+                            if (mediaPlayer.duration > 0) {
+                                mediaPlayer.position = (value / 100) * mediaPlayer.duration
+                            }
+                        }
+
+                        background: Rectangle {
+                            x: progressSlider.leftPadding
+                            y: progressSlider.topPadding + progressSlider.availableHeight / 2 - height / 2
+                            width: progressSlider.availableWidth
+                            height: progressSlider.hovered || progressSlider.pressed ? 6 : 4
+                            radius: height / 2
+                            color: darkMode ? "#404040" : "#d5d3cf"
+
+                            Behavior on height {
+                                NumberAnimation { duration: 150; easing.type: Easing.OutQuad }
+                            }
+
+                            Rectangle {
+                                width: progressSlider.visualPosition * parent.width
+                                height: parent.height
+                                color: accentBlue
+                                radius: height / 2
+                            }
+                        }
+
+                        handle: Rectangle {
+                            x: progressSlider.leftPadding + progressSlider.visualPosition * (progressSlider.availableWidth - width)
+                            y: progressSlider.topPadding + progressSlider.availableHeight / 2 - height / 2
+                            implicitWidth: 14
+                            implicitHeight: 14
+                            radius: width / 2
+                            color: accentBlue
+                            visible: progressSlider.enabled
+                            scale: progressSlider.pressed ? 1.2 : (progressSlider.hovered ? 1.1 : 1)
+
+                            Behavior on scale {
+                                NumberAnimation { duration: 100; easing.type: Easing.OutQuad }
                             }
                         }
                     }
 
                     RowLayout {
                         Layout.fillWidth: true
-                        Layout.alignment: Qt.AlignVCenter
                         spacing: 12
 
-                        Label {
-                            id: currentTimeLabel
-                            text: formatTime(progressSlider.seeking ? progressSlider.seekPosition : mediaPlayer.position)
-                            font.pixelSize: 14
-                            color: textSecondary
+                        // Play/Pause Button
+                        BaseRoundButton {
+                            width: 32
+                            height: 32
+                            iconWidth: 18
+                            iconHeight: 18
+                            iconSource: mediaPlayer.playbackState === MediaPlayer.PlayingState
+                                        ? "qrc:/resources/icons/media-playback-pause-symbolic.svg"
+                                        : "qrc:/resources/icons/media-playback-start-symbolic.svg"
+                            buttonEnabled: root.currentVideoSource !== ""
 
-                            function formatTime(ms) {
-                                if (!ms || ms < 0) return "0:00"
-                                var totalSeconds = Math.floor(ms / 1000)
-                                var minutes = Math.floor(totalSeconds / 60)
-                                var seconds = totalSeconds % 60
-                                return minutes + ":" + (seconds < 10 ? "0" + seconds : seconds)
-                            }
-                        }
-
-                        Slider {
-                            id: progressSlider
-                            Layout.fillWidth: true
-                            Layout.alignment: Qt.AlignVCenter
-                            from: 0
-                            to: 100
-                            value: 0
-                            enabled: root.currentVideoSource !== ""
-                            hoverEnabled: true
-
-                            property bool seeking: false
-                            property bool wasPlaying: false
-                            property real seekPosition: 0
-
-                            Connections {
-                                target: mediaPlayer
-                                function onPositionChanged() {
-                                    if (!progressSlider.seeking && mediaPlayer.duration > 0) {
-                                        progressSlider.value = (mediaPlayer.position / mediaPlayer.duration) * 100
-                                    }
-                                }
-                            }
-
-                            onPressedChanged: {
-                                if (pressed) {
-                                    seeking = true
-                                    wasPlaying = mediaPlayer.playbackState === MediaPlayer.PlayingState
-
-                                    if (wasPlaying) {
-                                        mediaPlayer.pause()
-                                    }
+                            onClicked: {
+                                if (mediaPlayer.playbackState === MediaPlayer.PlayingState) {
+                                    mediaPlayer.pause()
                                 } else {
-                                    seeking = false
-
-                                    if (wasPlaying) {
-                                        mediaPlayer.play()
-                                    }
-                                }
-                            }
-
-                            onValueChanged: {
-                                if (seeking && mediaPlayer.duration > 0) {
-                                    seekPosition = (value / 100) * mediaPlayer.duration
-                                }
-                            }
-
-                            onMoved: {
-                                if (mediaPlayer.duration > 0) {
-                                    // Update position in real-time while dragging
-                                    mediaPlayer.position = (value / 100) * mediaPlayer.duration
-                                }
-                            }
-
-                            background: Rectangle {
-                                x: progressSlider.leftPadding
-                                y: progressSlider.topPadding + progressSlider.availableHeight / 2 - height / 2
-                                width: progressSlider.availableWidth
-                                height: progressSlider.hovered || progressSlider.pressed ? 8 : 4
-                                radius: height / 2
-                                color: darkMode ? "#404040" : "#d5d3cf"
-
-                                Behavior on height {
-                                    NumberAnimation { duration: 150; easing.type: Easing.OutQuad }
-                                }
-
-                                Rectangle {
-                                    width: progressSlider.visualPosition * parent.width
-                                    height: parent.height
-                                    color: accentBlue
-                                    radius: height / 2
-                                }
-                            }
-
-                            handle: Rectangle {
-                                x: progressSlider.leftPadding + progressSlider.visualPosition * (progressSlider.availableWidth - width)
-                                y: progressSlider.topPadding + progressSlider.availableHeight / 2 - height / 2
-                                implicitWidth: progressSlider.pressed ? 20 : 16
-                                implicitHeight: progressSlider.pressed ? 20 : 16
-                                radius: width / 2
-                                color: accentBlue
-                                border.color: accentBlue
-                                border.width: 2
-                                visible: progressSlider.enabled
-                                scale: progressSlider.pressed ? 1.1 : 1
-
-                                Behavior on implicitWidth {
-                                    NumberAnimation { duration: 150; easing.type: Easing.OutQuad }
-                                }
-                                Behavior on implicitHeight {
-                                    NumberAnimation { duration: 150; easing.type: Easing.OutQuad }
-                                }
-                                Behavior on scale {
-                                    NumberAnimation { duration: 100; easing.type: Easing.OutQuad }
+                                    mediaPlayer.play()
                                 }
                             }
                         }
 
                         Label {
-                            id: totalTimeLabel
-                            text: formatTime(mediaPlayer.duration)
-                            font.pixelSize: 14
-                            color: textSecondary
+                            id: timeLabel
+                            text: formatCombinedTime(
+                                      progressSlider.seeking ? progressSlider.seekPosition : mediaPlayer.position,
+                                      mediaPlayer.duration
+                                      )
+                            font.pixelSize: 13
+                            font.weight: Font.Medium
+                            color: textPrimary
+                            Layout.leftMargin: 4
+
+                            function formatCombinedTime(currentMs, totalMs) {
+                                var currentTime = formatTime(currentMs)
+                                var totalTime = formatTime(totalMs)
+                                return currentTime + " / " + totalTime
+                            }
 
                             function formatTime(ms) {
                                 if (!ms || ms < 0) return "0:00"
@@ -498,18 +516,125 @@ RowLayout {
                                 return minutes + ":" + (seconds < 10 ? "0" + seconds : seconds)
                             }
                         }
-                    }
 
-                    BaseRoundButton {
-                        iconSource: audioOutput.muted
-                                    ? "qrc:/resources/icons/audio-volume-muted-symbolic.svg"
-                                    : "qrc:/resources/icons/audio-volume-high-symbolic.svg"
-                        buttonEnabled: root.currentVideoSource !== ""
+                        Item { Layout.fillWidth: true }
 
-                        onClicked: audioOutput.muted = !audioOutput.muted
+                        // Volume Control
+                        RowLayout {
+                            spacing: 8
+                            Layout.alignment: Qt.AlignRight
+
+
+                            // Volume Slider
+                            Slider {
+                                id: volumeSlider
+                                Layout.preferredWidth: 80
+                                from: 0
+                                to: 100
+                                value: audioOutput.muted ? 0 : audioOutput.volume * 100
+                                enabled: root.currentVideoSource !== ""
+                                hoverEnabled: true
+
+                                onMoved: {
+                                    audioOutput.volume = value / 100
+
+                                    // Wenn man den Slider bewegt, unmute automatisch
+                                    if (value > 0 && audioOutput.muted) {
+                                        audioOutput.muted = false
+                                    }
+                                }
+
+                                onValueChanged: {
+                                    if (!audioOutput.muted) {
+                                        videoPlayerArea.lastVolume = value / 100  // Speichere den aktuellen Wert
+                                    }
+                                }
+
+                                background: Rectangle {
+                                    x: volumeSlider.leftPadding
+                                    y: volumeSlider.topPadding + volumeSlider.availableHeight / 2 - height / 2
+                                    width: volumeSlider.availableWidth
+                                    height: 4
+                                    radius: height / 2
+                                    color: darkMode ? "#404040" : "#d5d3cf"
+
+                                    Rectangle {
+                                        width: volumeSlider.visualPosition * parent.width
+                                        height: parent.height
+                                        color: audioOutput.muted ? textSecondary : accentBlue
+                                        radius: height / 2
+
+                                        Behavior on color {
+                                            ColorAnimation { duration: 150 }
+                                        }
+                                    }
+                                }
+
+                                handle: Rectangle {
+                                    x: volumeSlider.leftPadding + volumeSlider.visualPosition * (volumeSlider.availableWidth - width)
+                                    y: volumeSlider.topPadding + volumeSlider.availableHeight / 2 - height / 2
+                                    implicitWidth: 12
+                                    implicitHeight: 12
+                                    radius: width / 2
+                                    color: accentBlue
+                                    visible: volumeSlider.enabled
+                                    scale: volumeSlider.pressed ? 1.2 : (volumeSlider.hovered ? 1.1 : 1)
+
+                                    Behavior on scale {
+                                        NumberAnimation { duration: 100; easing.type: Easing.OutQuad }
+                                    }
+                                    Behavior on border.color {
+                                        ColorAnimation { duration: 150 }
+                                    }
+                                }
+                            }
+
+                            // Mute Button
+                            BaseRoundButton {
+                                width: 32
+                                height: 32
+                                iconWidth: 18
+                                iconHeight: 18
+                                iconSource: audioOutput.muted || audioOutput.volume === 0
+                                            ? "qrc:/resources/icons/audio-volume-muted-symbolic.svg"
+                                            : audioOutput.volume < 0.33
+                                              ? "qrc:/resources/icons/audio-volume-low-symbolic.svg"
+                                              : audioOutput.volume < 0.66
+                                                ? "qrc:/resources/icons/audio-volume-medium-symbolic.svg"
+                                                : "qrc:/resources/icons/audio-volume-high-symbolic.svg"
+                                buttonEnabled: root.currentVideoSource !== ""
+
+                                onClicked: {
+                                    if (audioOutput.muted) {
+                                        audioOutput.muted = false
+                                        audioOutput.volume = videoPlayerArea.lastVolume
+                                        volumeSlider.value = videoPlayerArea.lastVolume * 100
+                                    } else {
+                                        videoPlayerArea.lastVolume = audioOutput.volume
+                                        audioOutput.muted = true
+                                        volumeSlider.value = 0
+                                    }
+                                }
+                            }
+                        }
+
                     }
                 }
             }
         }
     }
+
+    function loadApmDataForVideo(apmPath) {
+        if (!apmPath || apmPath === "") {
+            currentApmData = []
+            return
+        }
+
+        currentApmData = apmLoader.loadApmData(apmPath)
+
+        apmGraph.duration = root.currentVideoIndex >= 0
+                            ? clipModel.getDurationMs(root.currentVideoIndex)
+                            : 0
+    }
+
 }

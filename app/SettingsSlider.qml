@@ -44,7 +44,7 @@ Item {
                 x: slider.leftPadding
                 y: slider.topPadding + slider.availableHeight / 2 - height / 2
                 implicitWidth: 200
-                implicitHeight: slider.hovered || slider.pressed ? 8 : 4
+                implicitHeight: slider.hovered && enabled || enabled && slider.pressed ? 8 : 4
                 width: slider.availableWidth
                 height: implicitHeight
                 radius: 2
