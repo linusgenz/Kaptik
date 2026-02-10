@@ -13,8 +13,7 @@ pub enum CommandType {
     StartRecording = 0,
     StopRecording = 1,
     UpdateSetting = 2,
-    Shutdown = 67,
-    ShutdownUI = 68,
+    ShutdownUI = 67,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -5,3 +5,5 @@ pub mod settings;
 pub mod logger;
 pub mod ipc;
 pub mod game_detection;
+
+pub mod tray;

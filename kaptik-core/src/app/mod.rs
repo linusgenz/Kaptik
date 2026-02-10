@@ -11,12 +11,14 @@ use crate::log;
 use crate::recorder::capture::strategy::CaptureMethod;
 use crate::recorder::capture::WindowsCaptureRecorder;
 use crate::recorder::{RecorderEvent, RecordingState};
+use crate::tray::run_tray;
 
 pub async fn run() -> anyhow::Result<()> {
     log!("🎬 Kaptik Recorder started");
 
     let (event_tx, event_rx) = mpsc::unbounded_channel::<RecorderEvent>();
-    let (shutdown_tx, mut shutdown_rx) = watch::channel(false);
+
+    let event_tx_clone = event_tx.clone();
 
     let integration_manager = Arc::new(GameIntegrationManager::new());
     integration_manager.start_monitoring().await;
@@ -34,11 +36,12 @@ pub async fn run() -> anyhow::Result<()> {
         recorder.clone(),
         integration_manager.clone(),
     );
-    ipc_server::spawn(event_tx, recording_state, shutdown_tx.clone());
+    ipc_server::spawn(event_tx, recording_state);
 
     log!("✅ Recorder running");
 
-    shutdown_rx.changed().await?;
+    run_tray(event_tx_clone).ok();
+
     log!("👋 Recorder shutdown complete");
     Ok(())
 }

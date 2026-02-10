@@ -1,7 +1,7 @@
 use std::env;
 use std::path::PathBuf;
 
-use recorder::recorder::apm::{APMData, load_apm_msgpack};
+use kaptik_core::recorder::apm::{APMData, load_apm_msgpack};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
