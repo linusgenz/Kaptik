@@ -95,7 +95,7 @@ Item {
                 }
             }
 
-            var smoothing = 0.3
+            var smoothing = 0.25
 
             var gradient = ctx.createLinearGradient(0, 0, 0, height)
             gradient.addColorStop(0, Qt.rgba(graphColor.r, graphColor.g, graphColor.b, 0.3))

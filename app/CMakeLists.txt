@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.24)
 project(Kaptik VERSION 0.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
@@ -16,6 +16,7 @@ set(RESOURCES
 )
 
 qt_add_executable(appKaptik
+    WIN32
     main.cpp
     settingsmanager.h
     clipmodel.h
@@ -29,6 +30,7 @@ qt_add_executable(appKaptik
     ApmLoader.h
     ${RESOURCES}
 )
+
 
 qt_add_qml_module(appKaptik
     URI Kaptik
@@ -60,6 +62,24 @@ target_link_libraries(appKaptik PRIVATE
     shell32
 )
 
+if(MINGW)
+    target_link_libraries(appKaptik PRIVATE
+        -lkernel32
+        -luser32
+        -lgdi32
+        -lwinspool
+        -lole32
+        -loleaut32
+        -luuid
+        -lcomdlg32
+        -ladvapi32
+    )
+endif()
+
+set_target_properties(appKaptik PROPERTIES
+    OUTPUT_NAME "kaptik-ui"
+)
+
 
 include(GNUInstallDirs)
 install(TARGETS appKaptik
@@ -67,3 +87,7 @@ install(TARGETS appKaptik
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
+
+include(${CMAKE_SOURCE_DIR}/cmake/DeployQt.cmake)
+deploy_qt(appKaptik)
+

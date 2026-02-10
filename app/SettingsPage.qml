@@ -433,7 +433,7 @@ Item {
                         SettingsRow {
                             Layout.fillWidth: true
                             label: "HDR Brightness Mode"
-                            description: "How the recorder determines HDR peak brightness"
+                            description: "How the kaptik-core determines HDR peak brightness"
 
                             SettingsComboBox {
                                 settingsKey: Settings.Key_HdrNitsMode

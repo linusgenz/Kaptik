@@ -15,7 +15,7 @@ enum class CommandType : uint8_t {
     StartRecording = 0,
     StopRecording = 1,
     UpdateSetting = 2,
-    ShutdownUI = 68
+    ShutdownUI = 67
 };
 MSGPACK_ADD_ENUM(CommandType);
 

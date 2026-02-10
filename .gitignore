@@ -1,6 +1,6 @@
 app/libs/boost
 app/libs/msgpack
-recorder/target
+kaptik-core/target
 .idea
 out
 tray/target

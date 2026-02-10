@@ -15,5 +15,8 @@ async fn main() -> anyhow::Result<()> {
     unsafe {
         let _ = windows::Win32::System::Console::AllocConsole();
     }
+
+    let _ = std::process::Command::new("kaptik-ui.exe").spawn();
+
     app::run().await
 }
