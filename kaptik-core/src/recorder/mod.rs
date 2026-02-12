@@ -4,7 +4,6 @@ use uuid::Uuid;
 
 mod audio;
 pub(crate) mod capture;
-pub mod apm;
 
 use crate::game_detection;
 

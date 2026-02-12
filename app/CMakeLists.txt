@@ -28,6 +28,8 @@ qt_add_executable(appKaptik
     IpcClient.h
     ApmLoader.cpp
     ApmLoader.h
+    EventLoader.cpp
+    EventLoader.h
     ${RESOURCES}
 )
 
@@ -88,6 +90,16 @@ install(TARGETS appKaptik
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
-include(${CMAKE_SOURCE_DIR}/cmake/DeployQt.cmake)
-deploy_qt(appKaptik)
+if(EXISTS "${CMAKE_SOURCE_DIR}/cmake/DeployQt.cmake")
+    include("${CMAKE_SOURCE_DIR}/cmake/DeployQt.cmake")
+
+elseif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/cmake/DeployQt.cmake")
+    include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/DeployQt.cmake")
+
+endif()
+
+if(COMMAND deploy_qt)
+    deploy_qt(appKaptik)
+endif()
+
 

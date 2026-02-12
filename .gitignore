@@ -1,8 +1,6 @@
 app/libs/boost
 app/libs/msgpack
 kaptik-core/target
-.idea
-out
 tray/target
 build
 .vs

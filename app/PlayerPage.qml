@@ -14,7 +14,12 @@ RowLayout {
         id: apmLoader
     }
 
+    EventLoader {
+        id: eventLoader
+    }
+
     property var currentApmData: []
+    property var currentEventData: []
 
     // Sidebar
     Rectangle {
@@ -73,6 +78,7 @@ RowLayout {
                             root.currentVideoIndex = index
 
                             loadApmDataForVideo(model.apmPath)
+                            loadEventsForVideo()  // NEW: Load events
                         }
                     }
 
@@ -377,9 +383,17 @@ RowLayout {
                         visible: currentApmData.length > 0
 
                         apmData: currentApmData
+                        eventData: currentEventData
                         currentPosition: mediaPlayer.position
                         graphColor: accentBlue
                         showGrid: false
+
+                        Component.onCompleted: {
+                            // Ensure duration is set
+                            duration = root.currentVideoIndex >= 0
+                                        ? clipModel.getDurationMs(root.currentVideoIndex)
+                                        : 0
+                        }
                     }
 
                     Slider {
@@ -538,7 +552,6 @@ RowLayout {
                                 onMoved: {
                                     audioOutput.volume = value / 100
 
-                                    // Wenn man den Slider bewegt, unmute automatisch
                                     if (value > 0 && audioOutput.muted) {
                                         audioOutput.muted = false
                                     }
@@ -546,7 +559,7 @@ RowLayout {
 
                                 onValueChanged: {
                                     if (!audioOutput.muted) {
-                                        videoPlayerArea.lastVolume = value / 100  // Speichere den aktuellen Wert
+                                        videoPlayerArea.lastVolume = value / 100
                                     }
                                 }
 
@@ -637,4 +650,16 @@ RowLayout {
                             : 0
     }
 
+    function loadEventsForVideo() {
+        var eventsPath = "C:\\Users\\linus\\AppData\\Local\\Kaptik\\events\\b872cc8d-fbcc-463d-95eb-b45b98288d0b.events"
+
+        currentEventData = eventLoader.loadEvents(eventsPath)
+
+        console.log("Loaded", currentEventData.length, "events")
+
+        // Update graph duration
+        apmGraph.duration = root.currentVideoIndex >= 0
+                            ? clipModel.getDurationMs(root.currentVideoIndex)
+                            : 0
+    }
 }

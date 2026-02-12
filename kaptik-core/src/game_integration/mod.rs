@@ -1,8 +1,13 @@
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 
+pub mod events;
+pub mod event_storage;
 pub mod league_of_legends;
 pub(crate) mod manager;
+
+// Re-export wichtiger Typen
+pub use events::GameEvent;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameIntegration {
@@ -57,15 +62,23 @@ impl Default for GameState {
     }
 }
 
+/// Trait für alle Spiel-Integrationen
 #[async_trait::async_trait]
 pub trait GameIntegrationTrait: Send + Sync {
+    /// Initialisierung der Integration
     async fn initialize(&mut self) -> anyhow::Result<()>;
+
+    /// Aktuellen Spielzustand abrufen
     async fn get_game_state(&self) -> anyhow::Result<GameState>;
+
+    /// Prüfen ob aktuell eine Runde läuft
     async fn is_in_round(&self) -> bool;
+
     async fn get_character_name(&self) -> anyhow::Result<Option<String>>;
+
     fn get_game_name(&self) -> &str;
 
-    async fn get_new_events(&self) -> anyhow::Result<Option<Vec<league_of_legends::GameEvent>>> {
+    async fn get_new_events(&self) -> anyhow::Result<Option<Vec<GameEvent>>> {
         Ok(None)
     }
 

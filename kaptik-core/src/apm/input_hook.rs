@@ -3,7 +3,7 @@ use parking_lot::Mutex;
 use windows::Win32::UI::WindowsAndMessaging::*;
 use windows::Win32::Foundation::{LPARAM, LRESULT, WPARAM};
 use windows::Win32::System::Threading::GetCurrentThreadId;
-use crate::recorder::apm::APMTracker;
+use crate::apm::APMTracker;
 use std::thread::{self, JoinHandle};
 
 pub struct InputHook {
@@ -107,7 +107,7 @@ impl InputHook {
 
                 let mut msg = MSG::default();
                 while GetMessageW(&mut msg, None, 0, 0).as_bool() {
-                    TranslateMessage(&msg);
+                    let _ = TranslateMessage(&msg);
                     DispatchMessageW(&msg);
                 }
 

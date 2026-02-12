@@ -1,15 +1,23 @@
 use super::*;
+use crate::game_integration::event_storage::{get_events_path, save_events_msgpack, RecordingEvents};
 use crate::log;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
+use uuid::Uuid;
 
 pub struct GameIntegrationManager {
     integrations: HashMap<String, Arc<RwLock<Box<dyn GameIntegrationTrait>>>>,
     active_integration: Arc<RwLock<Option<String>>>,
     active_task: Arc<Mutex<Option<JoinHandle<()>>>>,
+
+    /// Event-Sammlung während der aktuellen Aufnahme
+    current_recording: Arc<RwLock<Option<RecordingEvents>>>,
+
+    /// Start-Zeitpunkt der Aufnahme für korrekte Event-Timestamps
+    recording_start_time: Arc<RwLock<Option<std::time::Instant>>>,
 }
 
 impl GameIntegrationManager {
@@ -18,12 +26,9 @@ impl GameIntegrationManager {
             integrations: HashMap::new(),
             active_integration: Arc::new(RwLock::new(None)),
             active_task: Arc::new(Mutex::new(None)),
+            current_recording: Arc::new(RwLock::new(None)),
+            recording_start_time: Arc::new(RwLock::new(None)),
         };
-
-        /* manager.register_integration(
-            "VALORANT-Win64-Shipping.exe",
-            Box::new(valorant::ValorantIntegration::new()),
-        );*/
 
         manager.register_integration(
             "League of Legends.exe",
@@ -54,6 +59,51 @@ impl GameIntegrationManager {
             log!("⚠️  Keine Integration verfügbar für: {}", exe_name);
             *self.active_integration.write().await = None;
             Ok(())
+        }
+    }
+
+    pub async fn start_event_recording(&self, recording_id: Uuid) {
+        let active = self.active_integration.read().await;
+
+        if let Some(ref game_name) = *active {
+            if let Some(integration) = self.integrations.get(game_name) {
+                let game_display_name = integration.read().await.get_game_name().to_string();
+
+                let recording = RecordingEvents::new(game_display_name, recording_id);
+                *self.current_recording.write().await = Some(recording);
+                *self.recording_start_time.write().await = Some(std::time::Instant::now());
+
+                log!("🎬 Event-Recording gestartet für Session: {}", recording_id);
+            }
+        }
+    }
+
+    pub async fn stop_event_recording(&self) -> anyhow::Result<()> {
+        if let Some(recording) = self.current_recording.write().await.take() {
+            let recording_id = recording.recording_id;
+
+            // Events speichern
+            let path = get_events_path(&recording_id)?;
+            save_events_msgpack(&recording, &path)?;
+
+            log!(
+                "💾 Events gespeichert: {} Events für Recording {}",
+                recording.events.len(),
+                recording_id
+            );
+            log!("   Davon {} Highlights", recording.get_highlights().len());
+            log!("   Pfad: {:?}", path);
+        }
+
+        *self.recording_start_time.write().await = None;
+        Ok(())
+    }
+
+    pub async fn get_current_session_events(&self) -> Vec<events::GameEvent> {
+        if let Some(ref recording) = *self.current_recording.read().await {
+            recording.events.clone()
+        } else {
+            Vec::new()
         }
     }
 
@@ -96,6 +146,8 @@ impl GameIntegrationManager {
 
         let active = self.active_integration.clone();
         let integrations = self.integrations.clone();
+        let current_recording = self.current_recording.clone();
+        let recording_start_time = self.recording_start_time.clone();
 
         let handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
@@ -118,41 +170,43 @@ impl GameIntegrationManager {
 
                     if let Ok(state) = integration.read().await.get_game_state().await {
                         log!(
-                            "[State] In-Round: {} | Champion: {:?} | Map: {:?}",
+                            "[State] In-Round: {} | Character: {:?} | Map: {:?}",
                             state.is_in_round,
                             state.character_name,
                             state.map_name
                         );
                     }
 
-                    if let Some(lol_integration) = integration
-                        .read()
-                        .await
-                        .as_any()
-                        .downcast_ref::<league_of_legends::LeagueOfLegendsIntegration>(
-                    ) {
-                        match lol_integration.get_new_events().await {
-                            Ok(events) => {
-                                let player_name = {
-                                    let guard = lol_integration.player_name.read().await;
-                                    guard.clone().unwrap_or_else(|| "".to_string())
-                                };
+                    if let Ok(Some(events)) = integration.read().await.get_new_events().await {
+                        let is_recording = current_recording.read().await.is_some();
 
-                                for event in events {
-                                    if league_of_legends::LeagueOfLegendsIntegration::is_highlight_event(&event, &player_name) {
-                                        log!(
-                                            "✨ Highlight Event: {} | Killer: {:?} | Victim: {:?} | Assisters: {:?}",
-                                            event.event_name, event.killer_name, event.victim_name, event.assisters
-                                        );
-                                    } else {
-                                        log!(
-                                            "[Event] {} | Killer: {:?} | Victim: {:?}",
-                                            event.event_name, event.killer_name, event.victim_name
-                                        );
-                                    }
+                        for mut event in events {
+                            if let Some(start_time) = *recording_start_time.read().await {
+                                let elapsed = start_time.elapsed().as_secs_f64();
+                                event.timestamp = elapsed;
+                            }
+
+                            if event.data.metadata.is_highlight {
+                                log!(
+                                    "✨ Highlight: {} | Actor: {:?} | Target: {:?}",
+                                    event.data.name,
+                                    event.data.actor,
+                                    event.data.target
+                                );
+                            } else {
+                                log!(
+                                    "[Event] {} | Actor: {:?} | Target: {:?}",
+                                    event.data.name,
+                                    event.data.actor,
+                                    event.data.target
+                                );
+                            }
+
+                            if is_recording {
+                                if let Some(ref mut recording) = *current_recording.write().await {
+                                    recording.add_event(event);
                                 }
                             }
-                            Err(_) => {}
                         }
                     }
                 }

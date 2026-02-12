@@ -18,7 +18,7 @@ pub fn spawn(
         log!("🔌 IPC server thread started");
 
         if let Err(e) = run_ipc_server(event_tx, state).await {
-            log!("❌ IPC Server Fehler: {}", e);
+            log!("❌ IPC Server error: {}", e);
         }
     })
 }

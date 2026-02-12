@@ -1,7 +1,7 @@
 use super::RecordingMetadata;
 use crate::game_integration::GameState;
 use crate::log;
-use crate::recorder::apm::{input_hook::InputHook, save_apm_msgpack, APMData, APMTracker};
+use crate::apm::{input_hook::InputHook, save_apm_msgpack, APMData, APMTracker};
 use anyhow::Result;
 use core::utils;
 use parking_lot::Mutex;
@@ -10,6 +10,7 @@ use std::sync::Arc;
 use strategy::{create_strategy, CaptureMethod, CaptureStrategy};
 use tokio::fs;
 use tokio::sync::RwLock;
+use uuid::Uuid;
 
 pub(crate) mod core;
 pub mod strategy;
@@ -53,9 +54,9 @@ impl WindowsCaptureRecorder {
         &self,
         window_title: &str,
         game_state: Option<GameState>,
-    ) -> Result<()> {
+    ) -> Result<Uuid> {
         if *self.is_recording.read().await {
-            return Err(anyhow::anyhow!("Bereits am Aufnehmen"));
+            return Err(anyhow::anyhow!("Already capturing"));
         }
 
         let metadata = RecordingMetadata::with_game_state(
@@ -64,6 +65,7 @@ impl WindowsCaptureRecorder {
             game_state.as_ref().and_then(|s| s.map_name.clone()),
             game_state.as_ref().and_then(|s| s.round_number),
         );
+        let rid = metadata.recording_id.clone();
 
         let filename = metadata.generate_filename();
         let output_path = self.get_output_path(&filename).await?;
@@ -80,7 +82,7 @@ impl WindowsCaptureRecorder {
         self.apm_tracker.lock().start_recording();
         self.input_hook.start();
 
-        Ok(())
+        Ok(rid)
     }
 
     pub async fn stop_recording(&self) -> Result<()> {

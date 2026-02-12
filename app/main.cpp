@@ -11,6 +11,7 @@
 #include "clipmodel.h"
 #include "thumbnailprovider.h"
 #include "ApmLoader.h"
+#include "EventLoader.h"
 
 int main(int argc, char *argv[]) {
     qputenv("QSG_RENDER_LOOP", "basic");
@@ -25,6 +26,7 @@ int main(int argc, char *argv[]) {
     QQmlApplicationEngine engine;
 
     qmlRegisterType<ApmLoader>("Kaptik", 1, 0, "ApmLoader");
+    qmlRegisterType<EventLoader>("Kaptik", 1, 0, "EventLoader");
 
     qmlRegisterSingletonType<SettingsManager>(
         "App", 1, 0, "Settings",

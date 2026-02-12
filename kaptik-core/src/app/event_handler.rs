@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use tokio::sync::{RwLock, mpsc};
+use uuid::Uuid;
 
 use crate::game_integration::manager::GameIntegrationManager;
 use crate::log;
@@ -47,7 +48,6 @@ pub fn spawn(
                                     let game_state = mgr.get_current_state().await;
                                     log!("Round detected! Start recording...");
 
-                                    // Isolate the !Send operation
                                     let window_title_clone = window_title.clone();
                                     let result = tokio::task::spawn_blocking(move || {
                                         tokio::runtime::Handle::current().block_on(async {
@@ -55,11 +55,13 @@ pub fn spawn(
                                                 .await
                                         })
                                     })
-                                    .await;
+                                        .await;
 
                                     match result {
-                                        Ok(Ok(())) => {
-                                            log!("✅ Recording started");
+                                        Ok(Ok(recording_id)) => {
+                                            log!("✅ Recording started with ID: {}", recording_id);
+                                            // Start event recording mit der gleichen ID
+                                            mgr.start_event_recording(recording_id).await;
                                         }
                                         Ok(Err(e)) => {
                                             log!("❌ Recording start error: {}", e);
@@ -83,11 +85,12 @@ pub fn spawn(
                                             rec.start_recording(&window_title_clone, None).await
                                         })
                                     })
-                                    .await;
+                                        .await;
 
                                     match result {
-                                        Ok(Ok(())) => {
-                                            log!("✅ Recording started");
+                                        Ok(Ok(recording_id)) => {
+                                            log!("✅ Recording started with ID: {}", recording_id);
+                                            mgr.start_event_recording(recording_id).await;
                                         }
                                         Ok(Err(e)) => {
                                             log!("❌ Recording start error: {}", e);
@@ -115,14 +118,20 @@ pub fn spawn(
                         log!("⏹️ Game over, stop recording");
 
                         let rec = recorder.clone();
-                        drop(state); // Release lock before blocking operation
+                        let mgr = integration_manager.clone();
+                        drop(state);
 
-                        // Isolate !Send operation
+                        // Stop event recording first
+                        if let Err(e) = mgr.stop_event_recording().await {
+                            log!("❌ Error stopping event recording: {}", e);
+                        }
+
+                        // Then stop video recording
                         let result = tokio::task::spawn_blocking(move || {
                             tokio::runtime::Handle::current()
                                 .block_on(async { rec.stop_recording().await })
                         })
-                        .await;
+                            .await;
 
                         match result {
                             Ok(Ok(())) => {
@@ -157,22 +166,26 @@ pub fn spawn(
                         let rec = recorder.clone();
                         let mgr = integration_manager.clone();
 
-                        drop(state); // Release lock
+                        drop(state);
 
                         // Get game state
                         let game_state = mgr.get_current_state().await;
 
-                        // Isolate !Send operation
+                        // Start recording
                         let result = tokio::task::spawn_blocking(move || {
                             tokio::runtime::Handle::current().block_on(async {
                                 rec.start_recording(&window_title, game_state).await
                             })
                         })
-                        .await;
+                            .await;
 
                         match result {
-                            Ok(Ok(())) => {
-                                log!("✅ Recording started");
+                            Ok(Ok(recording_id)) => {
+                                log!("✅ Recording started with ID: {}", recording_id);
+
+                                // Start event recording
+                                mgr.start_event_recording(recording_id).await;
+
                                 let mut state = recording_state.write().await;
                                 state.is_recording = true;
                                 state.current_game = Some(game_name);
@@ -198,14 +211,20 @@ pub fn spawn(
                     }
 
                     let rec = recorder.clone();
-                    drop(state); // Release lock
+                    let mgr = integration_manager.clone();
+                    drop(state);
 
-                    // Isolate !Send operation
+                    // Stop event recording first
+                    if let Err(e) = mgr.stop_event_recording().await {
+                        log!("❌ Error stopping event recording: {}", e);
+                    }
+
+                    // Then stop video recording
                     let result = tokio::task::spawn_blocking(move || {
                         tokio::runtime::Handle::current()
                             .block_on(async { rec.stop_recording().await })
                     })
-                    .await;
+                        .await;
 
                     match result {
                         Ok(Ok(())) => {

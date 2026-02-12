@@ -9,6 +9,10 @@
         <file>icons/weather-clear-symbolic.svg</file>
         <file>icons/audio-volume-low-symbolic.svg</file>
         <file>icons/audio-volume-medium-symbolic.svg</file>
+        <file>icons/assist-symbolic.svg</file>
+        <file>icons/cross-symbolic.svg</file>
+        <file>icons/skull-symbolic.svg</file>
+        <file>icons/star-symbolic.svg</file>
     </qresource>
     <qresource prefix="/">
         <file>BaseRoundButton.qml</file>
