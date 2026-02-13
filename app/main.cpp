@@ -18,6 +18,8 @@ int main(int argc, char *argv[]) {
     qputenv("QT_MEDIA_BACKEND", "ffmpeg");
 
     QGuiApplication app(argc, argv);
+    app.setWindowIcon(QIcon(":/resources/icons/kaptik_logo_transparent.png"));
+
     QQuickStyle::setStyle("Fusion");
     QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
 

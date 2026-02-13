@@ -9,10 +9,13 @@
         <file>icons/weather-clear-symbolic.svg</file>
         <file>icons/audio-volume-low-symbolic.svg</file>
         <file>icons/audio-volume-medium-symbolic.svg</file>
-        <file>icons/assist-symbolic.svg</file>
-        <file>icons/cross-symbolic.svg</file>
         <file>icons/skull-symbolic.svg</file>
         <file>icons/star-symbolic.svg</file>
+        <file>icons/handshake-symbolic.svg</file>
+        <file>icons/swords-symbolic.svg</file>
+        <file>icons/view-paged-symbolic.svg</file>
+        <file>icons/view-grid-symbolic.svg</file>
+        <file>icons/kaptik_logo_transparent.png</file>
     </qresource>
     <qresource prefix="/">
         <file>BaseRoundButton.qml</file>

@@ -168,6 +168,17 @@ QString getApmPathForRecording(const QString& recordingId)
     return dir.filePath( recordingId + ".apm" );
 }
 
+QString getEventsPathForRecording(const QString& recordingId)
+{
+    if (recordingId.isEmpty())
+        return QString();
+
+    QDir dir(QDir::homePath() + "/AppData/Local/Kaptik/events");
+
+    dir.mkpath("Kaptik/events");
+
+    return dir.filePath( recordingId + ".events" );
+}
 
 
 #endif

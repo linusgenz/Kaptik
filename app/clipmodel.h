@@ -14,6 +14,7 @@ struct Clip {
     QString date;
     QImage thumbnail;
     QString apmPath;
+    QString eventsPath;
 };
 
 class ClipModel : public QAbstractListModel {
@@ -27,7 +28,8 @@ public:
         DurationRole,
         DurationMsRole,
         ThumbnailRole,
-        ApmPathRole
+        ApmPathRole,
+        EventsPathRole
     };
     explicit ClipModel(QObject* parent = nullptr);
 

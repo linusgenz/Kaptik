@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fmt;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameEvent {
@@ -26,6 +27,18 @@ pub enum EventType {
     Custom(String),
 }
 
+impl fmt::Display for EventType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            EventType::Kill => "Kill",
+            EventType::Death => "Death",
+            EventType::Assist => "Assist",
+            _ => {"Unknown"},
+        };
+        write!(f, "{}", s)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventData {
     pub name: String,
@@ -46,8 +59,6 @@ pub struct EventMetadata {
     pub map: Option<String>,
 
     pub team: Option<String>,
-
-    pub is_highlight: bool,
 
     pub extra: HashMap<String, String>,
 }
@@ -80,11 +91,6 @@ impl GameEvent {
 
     pub fn with_participants(mut self, participants: Vec<String>) -> Self {
         self.data.participants = participants;
-        self
-    }
-
-    pub fn as_highlight(mut self) -> Self {
-        self.data.metadata.is_highlight = true;
         self
     }
 

@@ -7,8 +7,9 @@ import QtQuick.Layouts 1.15
 Item {
     id: root
 
+    signal seekRequested(real timestamp)
+
     property var apmData: []
-    property var eventData: []
     property real duration: 0
     property real currentPosition: 0
     property color graphColor: accentBlue
@@ -59,32 +60,6 @@ Item {
             sum += apmData[i].apm
         }
         return sum / apmData.length
-    }
-
-    function getEventIcon(eventType) {
-        switch(eventType) {
-            case "Kill":
-                return "qrc:/resources/icons/skull-symbolic.svg"
-            case "Death":
-                return "qrc:/resources/icons/cross-symbolic.svg"
-            case "Assist":
-                return "qrc:/resources/icons/assist-symbolic.svg"
-            default:
-                return "qrc:/resources/icons/star-symbolic.svg"
-        }
-    }
-
-    function getEventColor(eventType) {
-        switch(eventType) {
-            case "Kill":
-                return "#ef4444" // red
-            case "Death":
-                return "#8b5cf6" // purple
-            case "Assist":
-                return "#10b981" // green
-            default:
-                return accentBlue
-        }
     }
 
     onApmDataChanged: {
@@ -183,184 +158,7 @@ Item {
         }
     }
 
-    // NEW: Event markers layer
-    Repeater {
-        model: eventData
-
-        delegate: Item {
-            id: eventMarker
-
-            property var event: modelData
-            property real eventX: duration > 0 ? (event.timestamp / duration) * parent.width : 0
-            property color eventColor: getEventColor(event.event_type)
-
-            x: eventX - 12
-            y: 0
-            width: 24
-            height: parent.height
-
-            visible: duration > 0 && event.timestamp >= 0 && event.timestamp <= duration
-
-            // Vertical line
-            Rectangle {
-                anchors.horizontalCenter: parent.horizontalCenter
-                y: 28
-                width: 2
-                height: parent.height - 28
-                color: eventMarker.eventColor
-                opacity: 0.4
-            }
-
-            // Event icon background
-            Rectangle {
-                id: eventIconBg
-                anchors.horizontalCenter: parent.horizontalCenter
-                y: 4
-                width: 24
-                height: 24
-                radius: 12
-                color: eventMarker.eventColor
-                opacity: 0.9
-
-                // Icon
-                Image {
-                    anchors.centerIn: parent
-                    width: 14
-                    height: 14
-                    source: getEventIcon(event.event_type)
-                    smooth: true
-                    fillMode: Image.PreserveAspectFit
-
-                    ColorOverlay {
-                        anchors.fill: parent
-                        source: parent
-                        color: "white"
-                    }
-                }
-
-                // Glow effect
-                layer.enabled: true
-                layer.effect: Glow {
-                    radius: 8
-                    samples: 17
-                    color: eventMarker.eventColor
-                    spread: 0.3
-                }
-            }
-
-            // Hover area for tooltip
-            MouseArea {
-                anchors.fill: parent
-                hoverEnabled: true
-
-                onEntered: {
-                    eventTooltip.visible = true
-                    eventIconBg.scale = 1.15
-                }
-                onExited: {
-                    eventTooltip.visible = false
-                    eventIconBg.scale = 1.0
-                }
-
-                Behavior on scale {
-                    NumberAnimation { duration: 150; easing.type: Easing.OutQuad }
-                }
-            }
-
-            // Event tooltip
-            Rectangle {
-                id: eventTooltip
-                visible: false
-                x: {
-                    var tooltipX = -width/2 + parent.width/2
-                    // Keep within bounds
-                    return Math.min(Math.max(tooltipX, -eventMarker.x), root.width - eventMarker.x - width)
-                }
-                y: -height - 8
-                width: tooltipEventContent.width + 20
-                height: tooltipEventContent.height + 16
-                color: darkMode ? "#2a2a2a" : "#ffffff"
-                radius: 8
-                border.color: eventMarker.eventColor
-                border.width: 2
-
-                layer.enabled: true
-                layer.effect: DropShadow {
-                    transparentBorder: true
-                    horizontalOffset: 0
-                    verticalOffset: 2
-                    radius: 8
-                    samples: 17
-                    color: "#40000000"
-                }
-
-                ColumnLayout {
-                    id: tooltipEventContent
-                    anchors.centerIn: parent
-                    spacing: 6
-
-                    Label {
-                        text: event.event_type
-                        font.pixelSize: 13
-                        font.weight: Font.Bold
-                        color: eventMarker.eventColor
-                        Layout.alignment: Qt.AlignHCenter
-                    }
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 1
-                        color: darkMode ? "#404040" : "#e0e0e0"
-                        visible: event.name !== ""
-                    }
-
-                    Label {
-                        text: event.name
-                        font.pixelSize: 11
-                        color: textPrimary
-                        visible: event.name !== ""
-                        Layout.alignment: Qt.AlignHCenter
-                    }
-
-                    Label {
-                        text: formatEventTime(event.timestamp)
-                        font.pixelSize: 10
-                        color: textSecondary
-                        Layout.alignment: Qt.AlignHCenter
-                    }
-                }
-
-                // Arrow
-                Canvas {
-                    anchors.top: parent.bottom
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    width: 10
-                    height: 6
-
-                    onPaint: {
-                        var ctx = getContext("2d")
-                        ctx.clearRect(0, 0, width, height)
-                        ctx.fillStyle = eventMarker.eventColor
-                        ctx.beginPath()
-                        ctx.moveTo(0, 0)
-                        ctx.lineTo(width, 0)
-                        ctx.lineTo(width/2, height)
-                        ctx.closePath()
-                        ctx.fill()
-                    }
-                }
-            }
-
-            function formatEventTime(ms) {
-                var totalSeconds = Math.floor(ms / 1000)
-                var minutes = Math.floor(totalSeconds / 60)
-                var seconds = totalSeconds % 60
-                return minutes + ":" + (seconds < 10 ? "0" + seconds : seconds)
-            }
-        }
-    }
-
-    // Hover tooltip (existing APM tooltip)
+    // Hover tooltip
     MouseArea {
         id: hoverArea
         anchors.fill: parent
@@ -370,7 +168,7 @@ Item {
         property real hoveredApm: 0
         property real hoveredTime: 0
 
-        onPositionChanged: {
+        onPositionChanged: (mouse) => {
             if (apmData.length === 0 || duration <= 0) return
 
             hoveredTime = (mouse.x / width) * duration
@@ -386,6 +184,15 @@ Item {
                     break
                 }
             }
+        }
+
+        onClicked: (mouse) => {
+            if (apmData.length === 0 || duration <= 0)
+                return
+
+            var timestamp = (mouse.x / width) * duration
+
+            root.seekRequested(timestamp)
         }
 
         // Vertikale Linie bei Hover

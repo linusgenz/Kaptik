@@ -335,6 +335,9 @@ impl FfmpegEncoder {
             writer.flush()?;
         }
 
+        log!("Recording duration: {:?}", self.recording_start.elapsed());
+        log!("Video duration estimate: {}s", self.frame_count as f64 / self.fps as f64);
+
         log!(
             "📊 Frames: {}, Audio Samples: {}",
             self.frame_count,
@@ -455,6 +458,10 @@ impl FfmpegEncoder {
                 Err(e) => return Err(e.into()),
             }
         }
+    }
+
+    pub fn fps(&self) -> u32 {
+        self.fps
     }
 }
 

@@ -77,11 +77,9 @@ RowLayout {
                             root.currentVideoSource = model.path
                             root.currentVideoIndex = index
 
-                            loadApmDataForVideo(model.apmPath)
-                            loadEventsForVideo()  // NEW: Load events
+                            loadDataForVideo(model.apmPath, model.eventsPath)
                         }
                     }
-
 
                     contentItem: ColumnLayout {
                         spacing: 4
@@ -136,6 +134,7 @@ RowLayout {
         color: bgPrimary
 
         property real lastVolume: 1.0
+        property bool isSeeking: false
 
         focus: true
         Keys.enabled: root.currentView === 1
@@ -163,6 +162,31 @@ RowLayout {
                             }
                         }
 
+        NumberAnimation {
+            id: smoothSeekAnimation
+            target: mediaPlayer
+            property: "position"
+            duration: 100
+            easing.type: Easing.Linear
+
+            onRunningChanged: {
+                if (running) {
+                    videoPlayerArea.isSeeking = true
+                } else {
+                    videoPlayerArea.isSeeking = false
+                }
+            }
+
+            onFinished: {
+                if (resumeAfterSeek) {
+                    mediaPlayer.play()
+                    resumeAfterSeek = false
+                }
+
+                videoPlayerArea.isSeeking = false
+            }
+        }
+
         // MediaPlayer backend
         MediaPlayer {
             id: mediaPlayer
@@ -171,7 +195,7 @@ RowLayout {
 
             source: root.currentVideoSource
 
-            onPositionChanged: {
+            onPositionChanged: (mouse) => {
                 if (!progressSlider.pressed) {
                     progressSlider.value = duration > 0 ? (position / duration * 100) : 0
                 }
@@ -274,6 +298,11 @@ RowLayout {
                         target: mediaPlayer
 
                         function onPlaybackStateChanged() {
+                            if (suppressNextPlaybackOverlay) {
+                                suppressNextPlaybackOverlay = false
+                                return
+                            }
+
                             if (mediaPlayer.playbackState === MediaPlayer.PlayingState) {
                                 if (!videoHasBeenPlayed) {
                                     videoHasBeenPlayed = true
@@ -342,6 +371,11 @@ RowLayout {
                         target: mediaPlayer
 
                         function onPlaybackStateChanged() {
+                            if (suppressNextPlaybackOverlay) {
+                                suppressNextPlaybackOverlay = false
+                                return
+                            }
+
                             if (mediaPlayer.playbackState === MediaPlayer.PausedState) {
                                 pauseOverlay.showOnce()
                             }
@@ -360,7 +394,7 @@ RowLayout {
 
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: currentApmData.length > 0 ? 140 : 80
+                Layout.preferredHeight: currentApmData.length > 0 ? 150 : 80
                 color: bgSecondary
                 radius: 12
 
@@ -374,109 +408,138 @@ RowLayout {
                 ColumnLayout {
                     anchors.fill: parent
                     anchors.margins: 16
-                    spacing: 12
+                    spacing: 8
 
-                    ApmGraphView {
-                        id: apmGraph
+                    Item {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 48
-                        visible: currentApmData.length > 0
+                        Layout.preferredHeight: currentApmData.length > 0 ? 88 : 40
 
-                        apmData: currentApmData
-                        eventData: currentEventData
-                        currentPosition: mediaPlayer.position
-                        graphColor: accentBlue
-                        showGrid: false
+                        ApmGraphView {
+                            id: apmGraph
+                            anchors.fill: parent
+                            anchors.bottomMargin: 30
+                            visible: currentApmData.length > 0
+                            z: 0
 
-                        Component.onCompleted: {
-                            // Ensure duration is set
-                            duration = root.currentVideoIndex >= 0
+                            apmData: currentApmData
+                            currentPosition: mediaPlayer.position
+                            graphColor: accentBlue
+                            showGrid: false
+
+                            Component.onCompleted: {
+                                duration = root.currentVideoIndex >= 0
                                         ? clipModel.getDurationMs(root.currentVideoIndex)
                                         : 0
+                            }
+
+                            onSeekRequested: (timestamp) => smoothSeekTo(timestamp)
                         }
-                    }
 
-                    Slider {
-                        id: progressSlider
-                        Layout.fillWidth: true
-                        from: 0
-                        to: 100
-                        value: 0
-                        enabled: root.currentVideoSource !== ""
-                        hoverEnabled: true
+                        // Slider + Event Markers Container
+                        Item {
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.bottom: parent.bottom
+                            height: 40
 
-                        property bool seeking: false
-                        property bool wasPlaying: false
-                        property real seekPosition: 0
+                            // Slider
+                            Slider {
+                                id: progressSlider
+                                anchors.fill: parent
+                                from: 0
+                                to: 100
+                                value: 0
+                                enabled: root.currentVideoSource !== ""
+                                hoverEnabled: true
+                                z: 1
 
-                        Connections {
-                            target: mediaPlayer
-                            function onPositionChanged() {
-                                if (!progressSlider.seeking && mediaPlayer.duration > 0) {
-                                    progressSlider.value = (mediaPlayer.position / mediaPlayer.duration) * 100
+                                property bool seeking: false
+                                property bool wasPlaying: false
+                                property real seekPosition: 0
+
+                                Connections {
+                                    target: mediaPlayer
+                                    function onPositionChanged() {
+                                        if (!progressSlider.seeking && mediaPlayer.duration > 0) {
+                                            progressSlider.value = (mediaPlayer.position / mediaPlayer.duration) * 100
+                                        }
+                                    }
+                                }
+
+                                onPressedChanged: {
+                                    if (pressed) {
+                                        seeking = true
+                                        wasPlaying = mediaPlayer.playbackState === MediaPlayer.PlayingState
+                                        if (wasPlaying) {
+                                            mediaPlayer.pause()
+                                        }
+                                    } else {
+                                        seeking = false
+                                        if (wasPlaying) {
+                                            mediaPlayer.play()
+                                        }
+                                    }
+                                }
+
+                                onValueChanged: {
+                                    if (seeking && mediaPlayer.duration > 0) {
+                                        seekPosition = (value / 100) * mediaPlayer.duration
+                                    }
+                                }
+
+                                onMoved: {
+                                    if (mediaPlayer.duration > 0) {
+                                        mediaPlayer.position = (value / 100) * mediaPlayer.duration
+                                    }
+                                }
+
+                                background: Rectangle {
+                                    x: progressSlider.leftPadding
+                                    y: progressSlider.topPadding + progressSlider.availableHeight / 2 - height / 2
+                                    width: progressSlider.availableWidth
+                                    height: progressSlider.hovered || progressSlider.pressed ? 6 : 4
+                                    radius: height / 2
+                                    color: darkMode ? "#404040" : "#d5d3cf"
+
+                                    Behavior on height {
+                                        NumberAnimation { duration: 150; easing.type: Easing.OutQuad }
+                                    }
+
+                                    Rectangle {
+                                        width: progressSlider.visualPosition * parent.width
+                                        height: parent.height
+                                        color: accentBlue
+                                        radius: height / 2
+                                    }
+                                }
+
+                                handle: Rectangle {
+                                    x: progressSlider.leftPadding + progressSlider.visualPosition * (progressSlider.availableWidth - width)
+                                    y: progressSlider.topPadding + progressSlider.availableHeight / 2 - height / 2
+                                    implicitWidth: 16
+                                    implicitHeight: 16
+                                    radius: width / 2
+                                    color: accentBlue
+                                    visible: progressSlider.enabled
+                                    scale: progressSlider.pressed ? 1.2 : (progressSlider.hovered ? 1.1 : 1)
+
+                                    Behavior on scale {
+                                        NumberAnimation { duration: 100; easing.type: Easing.OutQuad }
+                                    }
                                 }
                             }
-                        }
 
-                        onPressedChanged: {
-                            if (pressed) {
-                                seeking = true
-                                wasPlaying = mediaPlayer.playbackState === MediaPlayer.PlayingState
-                                if (wasPlaying) {
-                                    mediaPlayer.pause()
-                                }
-                            } else {
-                                seeking = false
-                                if (wasPlaying) {
-                                    mediaPlayer.play()
-                                }
-                            }
-                        }
+                            EventMarkers {
+                                anchors.fill: parent
+                                z: 10
 
-                        onValueChanged: {
-                            if (seeking && mediaPlayer.duration > 0) {
-                                seekPosition = (value / 100) * mediaPlayer.duration
-                            }
-                        }
+                                eventData: currentEventData
+                                duration: root.currentVideoIndex >= 0
+                                          ? clipModel.getDurationMs(root.currentVideoIndex)
+                                          : 0
+                                currentPosition: mediaPlayer.position
 
-                        onMoved: {
-                            if (mediaPlayer.duration > 0) {
-                                mediaPlayer.position = (value / 100) * mediaPlayer.duration
-                            }
-                        }
-
-                        background: Rectangle {
-                            x: progressSlider.leftPadding
-                            y: progressSlider.topPadding + progressSlider.availableHeight / 2 - height / 2
-                            width: progressSlider.availableWidth
-                            height: progressSlider.hovered || progressSlider.pressed ? 6 : 4
-                            radius: height / 2
-                            color: darkMode ? "#404040" : "#d5d3cf"
-
-                            Behavior on height {
-                                NumberAnimation { duration: 150; easing.type: Easing.OutQuad }
-                            }
-
-                            Rectangle {
-                                width: progressSlider.visualPosition * parent.width
-                                height: parent.height
-                                color: accentBlue
-                                radius: height / 2
-                            }
-                        }
-
-                        handle: Rectangle {
-                            x: progressSlider.leftPadding + progressSlider.visualPosition * (progressSlider.availableWidth - width)
-                            y: progressSlider.topPadding + progressSlider.availableHeight / 2 - height / 2
-                            implicitWidth: 14
-                            implicitHeight: 14
-                            radius: width / 2
-                            color: accentBlue
-                            visible: progressSlider.enabled
-                            scale: progressSlider.pressed ? 1.2 : (progressSlider.hovered ? 1.1 : 1)
-
-                            Behavior on scale {
-                                NumberAnimation { duration: 100; easing.type: Easing.OutQuad }
+                                onSeekToEvent: (timestamp) => smoothSeekTo(timestamp)
                             }
                         }
                     }
@@ -637,29 +700,36 @@ RowLayout {
         }
     }
 
-    function loadApmDataForVideo(apmPath) {
+    property bool resumeAfterSeek: false
+    property bool suppressNextPlaybackOverlay: false
+
+    function smoothSeekTo(timestamp) {
+        videoPlayerArea.isSeeking = true
+        suppressNextPlaybackOverlay = true
+
+        resumeAfterSeek = mediaPlayer.playbackState === MediaPlayer.PlayingState
+        if (resumeAfterSeek)
+            mediaPlayer.pause()
+
+        smoothSeekAnimation.to = timestamp
+        smoothSeekAnimation.start()
+    }
+
+
+    function loadDataForVideo(apmPath, eventsPath) {
         if (!apmPath || apmPath === "") {
             currentApmData = []
             return
         }
 
-        currentApmData = apmLoader.loadApmData(apmPath)
-
-        apmGraph.duration = root.currentVideoIndex >= 0
-                            ? clipModel.getDurationMs(root.currentVideoIndex)
-                            : 0
-    }
-
-    function loadEventsForVideo() {
-        var eventsPath = "C:\\Users\\linus\\AppData\\Local\\Kaptik\\events\\b872cc8d-fbcc-463d-95eb-b45b98288d0b.events"
-
         currentEventData = eventLoader.loadEvents(eventsPath)
 
         console.log("Loaded", currentEventData.length, "events")
 
-        // Update graph duration
+        currentApmData = apmLoader.loadApmData(apmPath)
+
         apmGraph.duration = root.currentVideoIndex >= 0
-                            ? clipModel.getDurationMs(root.currentVideoIndex)
-                            : 0
+                ? clipModel.getDurationMs(root.currentVideoIndex)
+                : 0
     }
 }

@@ -1,6 +1,8 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
+import Qt5Compat.GraphicalEffects
+
 import App 1.0
 
 Item {
@@ -20,6 +22,7 @@ Item {
             delegate: Item {
                 width: 320
                 height: 240
+                clip: true
 
                 Rectangle {
                     id: card
@@ -27,8 +30,10 @@ Item {
                     anchors.margins: 12
                     radius: 12
                     color: bgSecondary
-                    clip: true
                     scale: mouseArea.containsMouse ? 1.015 : 1.0
+
+                    layer.enabled: true
+                    layer.smooth: true
 
                     Behavior on scale {
                         NumberAnimation { duration: 120; easing.type: Easing.OutQuad }
@@ -44,7 +49,7 @@ Item {
                             root.currentVideoSource = model.path
                             root.currentVideoIndex = index
                             root.currentView = 1
-                            root.videoSelected(model.apmPath)
+                            root.videoSelected(model.apmPath, model.eventsPath)
                         }
                     }
 
@@ -55,16 +60,34 @@ Item {
                         Item {
                             Layout.fillWidth: true
                             Layout.preferredHeight: 150
-                            clip: true
 
-                            Image {
-                                anchors.fill: parent
-                                source: index >= 0 ? "image://thumbnails/" + index : ""
-                                fillMode: Image.PreserveAspectCrop
-                                asynchronous: true
-                                cache: true
-                                visible: index >= 0
-                            }
+                            OpacityMask {
+                                    id: mask
+                                    anchors.fill: parent
+
+                                    source: Image {
+                                        anchors.fill: parent
+                                        source: index >= 0 ? "image://thumbnails/" + index : ""
+                                        fillMode: Image.PreserveAspectCrop
+                                        asynchronous: true
+                                        cache: true
+                                    }
+
+                                    maskSource: Rectangle {
+                                       width: mask.width
+                                        height: mask.height
+
+                                        radius: 12
+                                        color: "white"
+
+                                        Rectangle {
+                                            anchors.bottom: parent.bottom
+                                            width: parent.width
+                                            height: radius
+                                            color: "white"
+                                        }
+                                    }
+                                }
 
                             // Gradient for readability
                             Rectangle {

@@ -235,12 +235,12 @@ impl GameDetector {
             "leagueclient.exe",
             "riotclientservices.exe",
             "Riot Client.exe",
+            "RiotClientServices.exe"
         ];
         if launcher_exes.iter().any(|e| exe_lower.contains(e)) {
             return false;
         }
 
-        // Titel-basierte Ausschlüsse
         let excluded_title_patterns = [
             "qt creator",
             "visual studio",

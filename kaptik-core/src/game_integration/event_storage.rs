@@ -32,13 +32,6 @@ impl RecordingEvents {
     pub fn add_event(&mut self, event: GameEvent) {
         self.events.push(event);
     }
-
-    pub fn get_highlights(&self) -> Vec<&GameEvent> {
-        self.events
-            .iter()
-            .filter(|e| e.data.metadata.is_highlight)
-            .collect()
-    }
 }
 
 pub fn save_events_msgpack<P: AsRef<Path>>(
@@ -85,12 +78,10 @@ mod tests {
 
         let event = GameEvent::new(1, EventType::Kill, 45.5, "ChampionKill".to_string())
             .with_actor("TestPlayer".to_string())
-            .with_target("Enemy".to_string())
-            .as_highlight();
+            .with_target("Enemy".to_string());
 
         recording.add_event(event);
 
         assert_eq!(recording.events.len(), 1);
-        assert_eq!(recording.get_highlights().len(), 1);
     }
 }

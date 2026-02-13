@@ -1,5 +1,7 @@
 use super::*;
-use crate::game_integration::event_storage::{get_events_path, save_events_msgpack, RecordingEvents};
+use crate::game_integration::event_storage::{
+    RecordingEvents, get_events_path, save_events_msgpack,
+};
 use crate::log;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -91,7 +93,6 @@ impl GameIntegrationManager {
                 recording.events.len(),
                 recording_id
             );
-            log!("   Davon {} Highlights", recording.get_highlights().len());
             log!("   Pfad: {:?}", path);
         }
 
@@ -186,21 +187,12 @@ impl GameIntegrationManager {
                                 event.timestamp = elapsed;
                             }
 
-                            if event.data.metadata.is_highlight {
-                                log!(
-                                    "✨ Highlight: {} | Actor: {:?} | Target: {:?}",
-                                    event.data.name,
-                                    event.data.actor,
-                                    event.data.target
-                                );
-                            } else {
-                                log!(
-                                    "[Event] {} | Actor: {:?} | Target: {:?}",
-                                    event.data.name,
-                                    event.data.actor,
-                                    event.data.target
-                                );
-                            }
+                            log!(
+                                "[Event] {} | Actor: {:?} | Target: {:?}",
+                                event.data.name,
+                                event.data.actor,
+                                event.data.target
+                            );
 
                             if is_recording {
                                 if let Some(ref mut recording) = *current_recording.write().await {

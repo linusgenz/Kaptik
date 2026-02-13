@@ -11,14 +11,16 @@ pub struct LeagueOfLegendsIntegration {
     client: Arc<RwLock<IngameClient>>,
     last_event_id: Arc<RwLock<u32>>,
     pub(crate) player_name: Arc<RwLock<Option<String>>>,
+    pub(crate) player_name_short: Arc<RwLock<Option<String>>>,
 }
 
 impl LeagueOfLegendsIntegration {
     pub fn new() -> Self {
         Self {
-            client: Arc::new(RwLock::new(IngameClient::new().unwrap())),
+            client: Arc::new(RwLock::new(IngameClient::new())),
             last_event_id: Arc::new(RwLock::new(0)),
             player_name: Arc::new(RwLock::new(None)),
+            player_name_short: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -49,7 +51,7 @@ impl LeagueOfLegendsIntegration {
 
         // KDA für Metadata abrufen
         let current_kda = self.get_player_scores().await.unwrap_or((0, 0, 0));
-        let player_name = self.player_name.read().await.clone().unwrap_or_default();
+        let player_name_short = self.player_name_short.read().await.clone().unwrap_or_default();
 
         for event in shaco_events {
             let event_id = event.get_event_id();
@@ -64,10 +66,10 @@ impl LeagueOfLegendsIntegration {
                         _ => None,
                     };
 
-                    let is_player_killer = killer_player == Some(&player_name);
-                    let is_player_victim = e.victim_name == player_name;
-                    let is_player_assist = e.assisters.contains(&player_name);
-
+                    let is_player_killer = killer_player == Some(&player_name_short);
+                    let is_player_victim = e.victim_name == player_name_short;
+                    let is_player_assist = e.assisters.contains(&player_name_short);
+                    
                     if !(is_player_killer || is_player_victim || is_player_assist) {
                         continue;
                     }
@@ -82,18 +84,14 @@ impl LeagueOfLegendsIntegration {
 
                     GameEvent::new(
                         e.event_id,
-                        event_type,
+                        event_type.clone(),
                         e.event_time as f64,
-                        "ChampionKill".to_string(),
+                        event_type.to_string(),
                     )
                         .with_actor(killer_player.cloned().unwrap_or("Unknown".into()))
                         .with_target(e.victim_name.clone())
                         .with_participants(e.assisters.clone())
                         .with_kda(current_kda.0, current_kda.1, current_kda.2)
-                        .with_metadata(EventMetadata {
-                            is_highlight: is_player_killer || is_player_victim || is_player_assist,
-                            ..Default::default()
-                        })
                 }
                 shaco::model::ingame::GameEvent::DragonKill(e) => {
                     let killer_player = match &e.killer_name {
@@ -101,8 +99,8 @@ impl LeagueOfLegendsIntegration {
                         _ => None,
                     };
 
-                    let is_player_killer = killer_player == Some(&player_name);
-                    let is_player_assist = e.assisters.contains(&player_name);
+                    let is_player_killer = killer_player == Some(&player_name_short);
+                    let is_player_assist = e.assisters.contains(&player_name_short);
 
                     if !(is_player_killer || is_player_assist) {
                         continue;
@@ -112,11 +110,10 @@ impl LeagueOfLegendsIntegration {
                         e.event_id,
                         EventType::Objective,
                         e.event_time as f64,
-                        "DragonKill".to_string(),
+                        "Dragon".to_string(),
                     )
                         .with_actor(killer_player.cloned().unwrap_or("Unknown".into()))
                         .with_kda(current_kda.0, current_kda.1, current_kda.2)
-                        .as_highlight()
                 }
                 shaco::model::ingame::GameEvent::BaronKill(e) => {
                     GameEvent::new(
@@ -127,7 +124,6 @@ impl LeagueOfLegendsIntegration {
                     )
                         .with_actor(e.killer_name.clone().to_string())
                         .with_kda(current_kda.0, current_kda.1, current_kda.2)
-                        .as_highlight()
                 }
                 shaco::model::ingame::GameEvent::Ace(e) => {
                     GameEvent::new(
@@ -137,42 +133,27 @@ impl LeagueOfLegendsIntegration {
                         "Ace".to_string(),
                     )
                         .with_kda(current_kda.0, current_kda.1, current_kda.2)
-                        .as_highlight()
                 }
                 shaco::model::ingame::GameEvent::TurretKilled(e) => {
                     GameEvent::new(
                         e.event_id,
                         EventType::Objective,
                         e.event_time as f64,
-                        "TurretKilled".to_string(),
+                        "Turret".to_string(),
                     )
                         .with_actor(e.killer_name.clone().to_string())
                         .with_kda(current_kda.0, current_kda.1, current_kda.2)
-                        .with_metadata(EventMetadata {
-                            is_highlight: e.killer_name.to_string() == player_name,
-                            ..Default::default()
-                        })
+
                 }
                 shaco::model::ingame::GameEvent::InhibKilled(e) => {
                     GameEvent::new(
                         e.event_id,
                         EventType::Objective,
                         e.event_time as f64,
-                        "InhibKilled".to_string(),
+                        "Inhibitor".to_string(),
                     )
                         .with_actor(e.killer_name.clone().to_string())
                         .with_kda(current_kda.0, current_kda.1, current_kda.2)
-                        .as_highlight()
-                }
-                shaco::model::ingame::GameEvent::GameEnd(e) => {
-                    GameEvent::new(
-                        e.event_id,
-                        EventType::GameEnd,
-                        e.event_time as f64,
-                        "GameEnd".to_string(),
-                    )
-                        .with_kda(current_kda.0, current_kda.1, current_kda.2)
-                        .as_highlight()
                 }
                 _ => continue,
             };
@@ -235,8 +216,12 @@ impl GameIntegrationTrait for LeagueOfLegendsIntegration {
         if client.active_game().await {
             state.is_in_round = true;
 
-            if let Ok(name) = client.active_player_name().await {
-                *self.player_name.write().await = Some(name);
+            if let Ok(full_name) = client.active_player_name().await {
+                let short_name = full_name.split('#').next().map(|s| s.to_string());
+
+                *self.player_name_short.write().await = short_name;
+
+                *self.player_name.write().await = Some(full_name);
             }
 
             state.character_name = self.fetch_champion_name().await?;

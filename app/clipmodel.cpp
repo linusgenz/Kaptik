@@ -27,6 +27,7 @@ QVariant ClipModel::data(const QModelIndex &index, int role) const {
     case ThumbnailRole:
         return QString("image://thumbnails/%1").arg(index.row());
     case ApmPathRole: return clip.apmPath;
+    case EventsPathRole: return clip.eventsPath;
     default: return {};
     }
 }
@@ -39,7 +40,8 @@ QHash<int, QByteArray> ClipModel::roleNames() const {
         {DurationRole, "duration"},
         {DurationMsRole, "durationMs"},
         {ThumbnailRole, "thumbnail"},
-        {ApmPathRole, "apmPath"}
+        {ApmPathRole, "apmPath"},
+        {EventsPathRole, "eventsPath"}
     };
 }
 
@@ -86,6 +88,7 @@ void ClipModel::loadFromPath(const QString &dirPath) {
 
         if (!recordingId.isEmpty()) {
             clip.apmPath = getApmPathForRecording(recordingId);
+            clip.eventsPath = getEventsPathForRecording(recordingId);
         }
 
         m_clips.append(clip);

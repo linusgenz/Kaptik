@@ -7,9 +7,15 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
+enable_language(RC)
+
 find_package(Qt6 REQUIRED COMPONENTS Quick QuickControls2 Svg Multimedia Core5Compat)
 
 qt_standard_project_setup(REQUIRES 6.8)
+
+if(WIN32)
+    set(APP_ICON_RESOURCE "${CMAKE_CURRENT_SOURCE_DIR}/resources.rc")
+endif()
 
 set(RESOURCES
     resources.qrc
@@ -31,6 +37,7 @@ qt_add_executable(appKaptik
     EventLoader.cpp
     EventLoader.h
     ${RESOURCES}
+    ${APP_ICON_RESOURCE}
 )
 
 
@@ -47,7 +54,9 @@ qt_add_qml_module(appKaptik
         SettingsSlider.qml
         BaseRoundButton.qml
         ApmGraphView.qml
-        RESOURCES resources.qrc
+        EventMarkers.qml
+    RESOURCES
+        resources.qrc
 )
 
 set(LIBS_DIR "G:/Kaptik/app/libs")
@@ -80,6 +89,7 @@ endif()
 
 set_target_properties(appKaptik PROPERTIES
     OUTPUT_NAME "kaptik-ui"
+    WIN32_EXECUTABLE TRUE
 )
 
 

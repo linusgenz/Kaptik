@@ -3,6 +3,7 @@ import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import QtMultimedia 6.5
 import QtQuick.Shapes 1.15
+import Qt5Compat.GraphicalEffects
 import App 1.0
 
 ApplicationWindow {
@@ -65,7 +66,7 @@ ApplicationWindow {
         }
     }
 
-    signal videoSelected(string apmPath)
+    signal videoSelected(string apmPath, string eventsPath)
 
     color: bgPrimary
 
@@ -89,19 +90,37 @@ ApplicationWindow {
                 Row {
                     spacing: 4
 
+                    // GRID VIEW
                     RoundButton {
                         id: gridViewBtn
                         width: 36
                         height: 36
-                        text: "▦"
-                        font.pixelSize: 16
                         flat: true
 
-                        palette.buttonText: currentView === 0 ? accentBlue : textSecondary
-
                         background: Rectangle {
-                            color: gridViewBtn.hovered ? hoverBg : (currentView === 0 ? hoverBg : "transparent")
+                            color: {
+                                if (currentView === 0) {
+                                    return gridViewBtn.hovered ? Qt.darker(accentBlue, 1.1) : accentBlue
+                                }
+                                return gridViewBtn.hovered ? hoverBg : "transparent"
+                            }
                             radius: 6
+                        }
+
+                        contentItem: Image {
+                            anchors.centerIn: parent
+                            width: 20
+                            height: 20
+
+                            source: "qrc:/resources/icons/view-grid-symbolic.svg"
+                            fillMode: Image.PreserveAspectFit
+                            smooth: true
+
+                            ColorOverlay {
+                                anchors.fill: parent
+                                source: parent
+                                color: currentView === 0 ? "#ffffff" : textSecondary
+                            }
                         }
 
                         onClicked: {
@@ -114,15 +133,32 @@ ApplicationWindow {
                         id: playerViewBtn
                         width: 36
                         height: 36
-                        text: "▶"
-                        font.pixelSize: 14
                         flat: true
 
-                        palette.buttonText: currentView === 1 ? accentBlue : textSecondary
-
                         background: Rectangle {
-                            color: playerViewBtn.hovered ? hoverBg : (currentView === 1 ? hoverBg : "transparent")
+                            color: {
+                                if (currentView === 1) {
+                                    return playerViewBtn.hovered ? Qt.darker(accentBlue, 1.1) : accentBlue
+                                }
+                                return playerViewBtn.hovered ? hoverBg : "transparent"
+                            }
                             radius: 6
+                        }
+
+                        contentItem: Image {
+                            anchors.centerIn: parent
+                            width: 20
+                            height: 20
+
+                            source: "qrc:/resources/icons/view-paged-symbolic.svg"
+                            fillMode: Image.PreserveAspectFit
+                            smooth: true
+
+                            ColorOverlay {
+                                anchors.fill: parent
+                                source: parent
+                                color: currentView === 1 ? "#ffffff" : textSecondary
+                            }
                         }
 
                         onClicked: currentView = 1
@@ -144,16 +180,6 @@ ApplicationWindow {
 
                 Item {
                     Layout.fillWidth: true
-                }
-
-                // Theme Toggle Button
-                BaseRoundButton {
-                    iconSource: darkMode ? "qrc:/resources/icons/weather-clear-night-symbolic.svg" : "qrc:/resources/icons/weather-clear-symbolic.svg"
-
-                    onClicked: {
-                        root.darkMode = !root.darkMode
-                        Settings.saveDarkMode(root.darkMode)
-                    }
                 }
 
                 // Capture Button
@@ -206,8 +232,8 @@ ApplicationWindow {
 
                 Connections {
                     target: root
-                    function onVideoSelected(apmPath) {
-                        playerPage.loadApmDataForVideo(apmPath)
+                    function onVideoSelected(apmPath, eventsPath) {
+                        playerPage.loadDataForVideo(apmPath, eventsPath)
                     }
                 }
             }

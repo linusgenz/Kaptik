@@ -18,7 +18,6 @@ fn main() {
         "view" => view_events(&args[2]),
         "stats" => show_stats(&args[2]),
         "timeline" => show_timeline(&args[2]),
-        "highlights" => show_highlights(&args[2]),
         "csv" => export_csv(&args[2]),
         "tree" => dump_tree(&args[2]),
             _ => print_usage(&args[0]),
@@ -95,14 +94,12 @@ fn view_events(path: &str) {
 
         let time = format!("{:>3}:{:02}", minutes, seconds);
         let event_type = format!("{:?}", e.event_type);
-        let highlight = if e.data.metadata.is_highlight { "★" } else { " " };
 
         println!(
-            "{:>TIME_W$} │ {:>TYPE_W$} │ {:<NAME_W$} │ {:^MARK_W$} │ {} → {}",
+            "{:>TIME_W$} │ {:>TYPE_W$} │ {:<NAME_W$} │ {} → {}",
             time,
             event_type,
             e.data.name,
-            highlight,
             e.data.actor.as_deref().unwrap_or("-"),
             e.data.target.as_deref().unwrap_or("-"),
         );
@@ -132,7 +129,6 @@ fn show_stats(path: &str) {
 
     println!("Game: {}", data.game_name);
     println!("Events: {}", data.events.len());
-    println!("Highlights: {}", data.get_highlights().len());
 
     println!("\nEvents by type:");
     for (ty, count) in per_type {
@@ -141,29 +137,6 @@ fn show_stats(path: &str) {
 
     if let Some(last) = data.events.last() {
         println!("\nDuration: {:.1}s", last.timestamp);
-    }
-}
-
-fn show_highlights(path: &str) {
-    let data = load_file(path);
-
-    let highlights = data.get_highlights();
-
-    if highlights.is_empty() {
-        println!("No highlights");
-        return;
-    }
-
-    println!("⭐ Highlights");
-    println!();
-
-    for e in highlights {
-        println!(
-            "{:.2}s — {:?} {}",
-            e.timestamp,
-            e.event_type,
-            e.data.name
-        );
     }
 }
 
@@ -205,13 +178,12 @@ fn export_csv(path: &str) {
 
     for e in &data.events {
         println!(
-            "{:.2},{:?},{},{},{},{}",
+            "{:.2},{:?},{},{},{}",
             e.timestamp,
             e.event_type,
             e.data.name,
             e.data.actor.as_deref().unwrap_or(""),
             e.data.target.as_deref().unwrap_or(""),
-            e.data.metadata.is_highlight
         );
     }
 }

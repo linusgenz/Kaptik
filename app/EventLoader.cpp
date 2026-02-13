@@ -210,12 +210,6 @@ void EventLoader::parseEventData(const msgpack::object& data_obj, QVariantMap& e
                 for (uint32_t n = 0; n < meta_map->size; ++n) {
                     std::string meta_key;
                     meta_map->ptr[n].key.convert(meta_key);
-
-                    if (meta_key == "is_highlight") {
-                        bool is_highlight;
-                        meta_map->ptr[n].val.convert(is_highlight);
-                        event["is_highlight"] = is_highlight;
-                    }
                 }
             }
         }
@@ -248,21 +242,6 @@ void EventLoader::parseEventDataAsArray(const msgpack::object& data_obj, QVarian
         for (uint32_t n = 0; n < meta_map->size; ++n) {
             std::string meta_key;
             meta_map->ptr[n].key.convert(meta_key);
-
-            if (meta_key == "is_highlight") {
-                bool is_highlight;
-                meta_map->ptr[n].val.convert(is_highlight);
-                event["is_highlight"] = is_highlight;
-            }
-        }
-    }
-    else if (meta_obj.type == msgpack::type::ARRAY) {
-        // EventMetadata as tuple - just get is_highlight for now
-        const auto* meta_arr = &meta_obj.via.array;
-        if (meta_arr->size > 3) {
-            bool is_highlight;
-            meta_arr->ptr[3].convert(is_highlight);
-            event["is_highlight"] = is_highlight;
         }
     }
 }
