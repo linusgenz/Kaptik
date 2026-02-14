@@ -90,7 +90,6 @@ ApplicationWindow {
                 Row {
                     spacing: 4
 
-                    // GRID VIEW
                     RoundButton {
                         id: gridViewBtn
                         width: 36
@@ -100,7 +99,7 @@ ApplicationWindow {
                         background: Rectangle {
                             color: {
                                 if (currentView === 0) {
-                                    return gridViewBtn.hovered ? Qt.darker(accentBlue, 1.1) : accentBlue
+                                    return gridViewBtn.hovered ? hoverBg : Qt.darker(hoverBg, 1.1)
                                 }
                                 return gridViewBtn.hovered ? hoverBg : "transparent"
                             }
@@ -111,6 +110,7 @@ ApplicationWindow {
                             anchors.centerIn: parent
                             width: 20
                             height: 20
+                            sourceSize: Qt.size(width, height)
 
                             source: "qrc:/resources/icons/view-grid-symbolic.svg"
                             fillMode: Image.PreserveAspectFit
@@ -138,7 +138,7 @@ ApplicationWindow {
                         background: Rectangle {
                             color: {
                                 if (currentView === 1) {
-                                    return playerViewBtn.hovered ? Qt.darker(accentBlue, 1.1) : accentBlue
+                                    return playerViewBtn.hovered ? hoverBg : Qt.darker(hoverBg, 1.1)
                                 }
                                 return playerViewBtn.hovered ? hoverBg : "transparent"
                             }
@@ -149,8 +149,9 @@ ApplicationWindow {
                             anchors.centerIn: parent
                             width: 20
                             height: 20
+                            sourceSize: Qt.size(width, height)
 
-                            source: "qrc:/resources/icons/view-paged-symbolic.svg"
+                            source: "qrc:/resources/icons/camera-video-symbolic.svg"
                             fillMode: Image.PreserveAspectFit
                             smooth: true
 
