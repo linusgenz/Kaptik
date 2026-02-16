@@ -1,5 +1,5 @@
-use std::time::{Instant, Duration};
 use std::collections::HashMap;
+use std::time::Instant;
 
 #[derive(Debug)]
 pub struct APMTracker {
@@ -81,7 +81,7 @@ impl APMTracker {
         // actions already in increasing order if recorded sequentially
         let actions = &self.actions;
         let total_duration = *actions.last().unwrap();
-        let last_second = (total_duration).ceil() as i64;
+        let last_second = total_duration.ceil() as i64;
 
         let mut series = Vec::with_capacity((last_second as f64 / step_secs) as usize + 2);
 

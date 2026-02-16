@@ -49,7 +49,7 @@ Item {
                             root.currentVideoSource = model.path
                             root.currentVideoIndex = index
                             root.currentView = 1
-                            root.videoSelected(model.apmPath, model.eventsPath)
+                            root.videoSelected(model.dataFilePath)
                         }
                     }
 
@@ -99,6 +99,26 @@ Item {
                                     GradientStop { position: 0.0; color: "#00000000" }
                                     GradientStop { position: 0.6; color: "#66000000" }
                                     GradientStop { position: 1.0; color: "#CC000000" }
+                                }
+                            }
+
+                            // KDA badge
+                            Rectangle {
+                                anchors.left: parent.left
+                                anchors.bottom: parent.bottom
+                                anchors.margins: 8
+                                height: 24
+                                width: kdaLabel.implicitWidth + 16
+                                radius: 4
+                                color: "#000000"
+                                opacity: 0.85
+
+                                Label {
+                                    id: kdaLabel
+                                    anchors.centerIn: parent
+                                    text: "10/2/22"
+                                    font.pixelSize: 12
+                                    color: "#ffffff"
                                 }
                             }
 

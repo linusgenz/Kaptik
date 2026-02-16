@@ -1,25 +1,18 @@
 use super::*;
-use crate::game_integration::event_storage::{
-    RecordingEvents, get_events_path, save_events_msgpack,
-};
 use crate::log;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
-use uuid::Uuid;
+use crate::game_integration::games::league_of_legends;
 
 pub struct GameIntegrationManager {
     integrations: HashMap<String, Arc<RwLock<Box<dyn GameIntegrationTrait>>>>,
     active_integration: Arc<RwLock<Option<String>>>,
     active_task: Arc<Mutex<Option<JoinHandle<()>>>>,
 
-    /// Event-Sammlung während der aktuellen Aufnahme
-    current_recording: Arc<RwLock<Option<RecordingEvents>>>,
-
-    /// Start-Zeitpunkt der Aufnahme für korrekte Event-Timestamps
-    recording_start_time: Arc<RwLock<Option<std::time::Instant>>>,
+    event_callback: Arc<RwLock<Option<Arc<dyn Fn(GameEvent) + Send + Sync>>>>,
 }
 
 impl GameIntegrationManager {
@@ -28,8 +21,7 @@ impl GameIntegrationManager {
             integrations: HashMap::new(),
             active_integration: Arc::new(RwLock::new(None)),
             active_task: Arc::new(Mutex::new(None)),
-            current_recording: Arc::new(RwLock::new(None)),
-            recording_start_time: Arc::new(RwLock::new(None)),
+            event_callback: Arc::new(RwLock::new(None)),
         };
 
         manager.register_integration(
@@ -49,62 +41,25 @@ impl GameIntegrationManager {
             .insert(exe_name.to_lowercase(), Arc::new(RwLock::new(integration)));
     }
 
+    pub async fn set_event_callback<F>(&self, callback: F)
+    where
+        F: Fn(GameEvent) + Send + Sync + 'static,
+    {
+        *self.event_callback.write().await = Some(Arc::new(callback));
+    }
+
     pub async fn activate_for_game(&self, exe_name: &str) -> anyhow::Result<()> {
         let exe_lower = exe_name.to_lowercase();
 
         if let Some(integration) = self.integrations.get(&exe_lower) {
             integration.write().await.initialize().await?;
             *self.active_integration.write().await = Some(exe_lower);
-            log!("✅ Integration aktiviert für: {}", exe_name);
+            log!("Integration activated for: {}", exe_name);
             Ok(())
         } else {
-            log!("⚠️  Keine Integration verfügbar für: {}", exe_name);
+            log!("No integration available for: {}", exe_name);
             *self.active_integration.write().await = None;
             Ok(())
-        }
-    }
-
-    pub async fn start_event_recording(&self, recording_id: Uuid) {
-        let active = self.active_integration.read().await;
-
-        if let Some(ref game_name) = *active {
-            if let Some(integration) = self.integrations.get(game_name) {
-                let game_display_name = integration.read().await.get_game_name().to_string();
-
-                let recording = RecordingEvents::new(game_display_name, recording_id);
-                *self.current_recording.write().await = Some(recording);
-                *self.recording_start_time.write().await = Some(std::time::Instant::now());
-
-                log!("🎬 Event-Recording gestartet für Session: {}", recording_id);
-            }
-        }
-    }
-
-    pub async fn stop_event_recording(&self) -> anyhow::Result<()> {
-        if let Some(recording) = self.current_recording.write().await.take() {
-            let recording_id = recording.recording_id;
-
-            // Events speichern
-            let path = get_events_path(&recording_id)?;
-            save_events_msgpack(&recording, &path)?;
-
-            log!(
-                "💾 Events gespeichert: {} Events für Recording {}",
-                recording.events.len(),
-                recording_id
-            );
-            log!("   Pfad: {:?}", path);
-        }
-
-        *self.recording_start_time.write().await = None;
-        Ok(())
-    }
-
-    pub async fn get_current_session_events(&self) -> Vec<events::GameEvent> {
-        if let Some(ref recording) = *self.current_recording.read().await {
-            recording.events.clone()
-        } else {
-            Vec::new()
         }
     }
 
@@ -147,8 +102,7 @@ impl GameIntegrationManager {
 
         let active = self.active_integration.clone();
         let integrations = self.integrations.clone();
-        let current_recording = self.current_recording.clone();
-        let recording_start_time = self.recording_start_time.clone();
+        let event_callback = self.event_callback.clone();
 
         let handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
@@ -169,6 +123,7 @@ impl GameIntegrationManager {
                         guard.clone()
                     };
 
+                    // Get current state (optional logging)
                     if let Ok(state) = integration.read().await.get_game_state().await {
                         log!(
                             "[State] In-Round: {} | Character: {:?} | Map: {:?}",
@@ -178,15 +133,11 @@ impl GameIntegrationManager {
                         );
                     }
 
+                    // Get new events
                     if let Ok(Some(events)) = integration.read().await.get_new_events().await {
-                        let is_recording = current_recording.read().await.is_some();
+                        let callback = event_callback.read().await;
 
-                        for mut event in events {
-                            if let Some(start_time) = *recording_start_time.read().await {
-                                let elapsed = start_time.elapsed().as_secs_f64();
-                                event.timestamp = elapsed;
-                            }
-
+                        for event in events {
                             log!(
                                 "[Event] {} | Actor: {:?} | Target: {:?}",
                                 event.data.name,
@@ -194,10 +145,9 @@ impl GameIntegrationManager {
                                 event.data.target
                             );
 
-                            if is_recording {
-                                if let Some(ref mut recording) = *current_recording.write().await {
-                                    recording.add_event(event);
-                                }
+                            // Forward event to callback (recorder)
+                            if let Some(ref cb) = *callback {
+                                cb(event);
                             }
                         }
                     }

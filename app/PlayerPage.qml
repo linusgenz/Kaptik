@@ -10,16 +10,13 @@ RowLayout {
     property alias mediaPlayer: mediaPlayer
     property alias videoPlayerArea: videoPlayerArea
 
-    ApmLoader {
-        id: apmLoader
-    }
-
-    EventLoader {
-        id: eventLoader
+    DataLoader {
+        id: dataLoader
     }
 
     property var currentApmData: []
     property var currentEventData: []
+    property var currentMetadata: ({})
 
     // Sidebar
     Rectangle {
@@ -77,7 +74,7 @@ RowLayout {
                             root.currentVideoSource = model.path
                             root.currentVideoIndex = index
 
-                            loadDataForVideo(model.apmPath, model.eventsPath)
+                            loadDataForVideo(model.dataFilePath)
                         }
                     }
 
@@ -716,17 +713,25 @@ RowLayout {
     }
 
 
-    function loadDataForVideo(apmPath, eventsPath) {
-        if (!apmPath || apmPath === "") {
+    function loadDataForVideo(dataPath) {
+        if (!dataPath || dataPath === "") {
             currentApmData = []
+            currentEventData = []
+            currentMetadata = {}
             return
         }
 
-        currentEventData = eventLoader.loadEvents(eventsPath)
+        console.log("Loading recording data from:", dataPath)
 
+        var recordingData = dataLoader.loadRecordingData(dataPath)
+
+        currentApmData = recordingData.apm || []
+        currentEventData = recordingData.events || []
+        currentMetadata = recordingData.metadata || {}
+
+        console.log("Loaded", currentApmData.length, "APM points")
         console.log("Loaded", currentEventData.length, "events")
-
-        currentApmData = apmLoader.loadApmData(apmPath)
+        console.log("Game:", currentMetadata.game_name)
 
         apmGraph.duration = root.currentVideoIndex >= 0
                 ? clipModel.getDurationMs(root.currentVideoIndex)

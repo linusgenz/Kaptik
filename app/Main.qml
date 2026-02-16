@@ -66,7 +66,7 @@ ApplicationWindow {
         }
     }
 
-    signal videoSelected(string apmPath, string eventsPath)
+    signal videoSelected(string dataFilePath)
 
     color: bgPrimary
 
@@ -233,8 +233,8 @@ ApplicationWindow {
 
                 Connections {
                     target: root
-                    function onVideoSelected(apmPath, eventsPath) {
-                        playerPage.loadDataForVideo(apmPath, eventsPath)
+                    function onVideoSelected(dataFilePath) {
+                        playerPage.loadDataForVideo(dataFilePath)
                     }
                 }
             }

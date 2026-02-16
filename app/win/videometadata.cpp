@@ -156,29 +156,4 @@ QString getRecordingIdFromVideo(const QString& videoPath)
     return recordingId;
 }
 
-QString getApmPathForRecording(const QString& recordingId)
-{
-    if (recordingId.isEmpty())
-        return QString();
-
-    QDir dir(QDir::homePath() + "/AppData/Local/Kaptik/recordings");
-
-    dir.mkpath("Kaptik/recordings");
-
-    return dir.filePath( recordingId + ".apm" );
-}
-
-QString getEventsPathForRecording(const QString& recordingId)
-{
-    if (recordingId.isEmpty())
-        return QString();
-
-    QDir dir(QDir::homePath() + "/AppData/Local/Kaptik/events");
-
-    dir.mkpath("Kaptik/events");
-
-    return dir.filePath( recordingId + ".events" );
-}
-
-
 #endif

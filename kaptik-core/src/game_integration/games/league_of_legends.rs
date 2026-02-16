@@ -1,5 +1,5 @@
-use super::{GameIntegrationTrait, GameState, Score};
 use crate::game_integration::events::{EventData, EventMetadata, EventType, GameEvent};
+use crate::game_integration::{GameIntegrationTrait, GameState, KDA, Score};
 use crate::log;
 use anyhow::Result;
 use shaco::ingame::IngameClient;
@@ -51,7 +51,12 @@ impl LeagueOfLegendsIntegration {
 
         // KDA für Metadata abrufen
         let current_kda = self.get_player_scores().await.unwrap_or((0, 0, 0));
-        let player_name_short = self.player_name_short.read().await.clone().unwrap_or_default();
+        let player_name_short = self
+            .player_name_short
+            .read()
+            .await
+            .clone()
+            .unwrap_or_default();
 
         for event in shaco_events {
             let event_id = event.get_event_id();
@@ -69,7 +74,7 @@ impl LeagueOfLegendsIntegration {
                     let is_player_killer = killer_player == Some(&player_name_short);
                     let is_player_victim = e.victim_name == player_name_short;
                     let is_player_assist = e.assisters.contains(&player_name_short);
-                    
+
                     if !(is_player_killer || is_player_victim || is_player_assist) {
                         continue;
                     }
@@ -88,10 +93,10 @@ impl LeagueOfLegendsIntegration {
                         e.event_time as f64,
                         event_type.to_string(),
                     )
-                        .with_actor(killer_player.cloned().unwrap_or("Unknown".into()))
-                        .with_target(e.victim_name.clone())
-                        .with_participants(e.assisters.clone())
-                        .with_kda(current_kda.0, current_kda.1, current_kda.2)
+                    .with_actor(killer_player.cloned().unwrap_or("Unknown".into()))
+                    .with_target(e.victim_name.clone())
+                    .with_participants(e.assisters.clone())
+                    .with_kda(current_kda.0, current_kda.1, current_kda.2)
                 }
                 shaco::model::ingame::GameEvent::DragonKill(e) => {
                     let killer_player = match &e.killer_name {
@@ -112,49 +117,40 @@ impl LeagueOfLegendsIntegration {
                         e.event_time as f64,
                         "Dragon".to_string(),
                     )
-                        .with_actor(killer_player.cloned().unwrap_or("Unknown".into()))
-                        .with_kda(current_kda.0, current_kda.1, current_kda.2)
+                    .with_actor(killer_player.cloned().unwrap_or("Unknown".into()))
+                    .with_kda(current_kda.0, current_kda.1, current_kda.2)
                 }
-                shaco::model::ingame::GameEvent::BaronKill(e) => {
-                    GameEvent::new(
-                        e.event_id,
-                        EventType::Objective,
-                        e.event_time as f64,
-                        "BaronKill".to_string(),
-                    )
-                        .with_actor(e.killer_name.clone().to_string())
-                        .with_kda(current_kda.0, current_kda.1, current_kda.2)
-                }
-                shaco::model::ingame::GameEvent::Ace(e) => {
-                    GameEvent::new(
-                        e.event_id,
-                        EventType::Special,
-                        e.event_time as f64,
-                        "Ace".to_string(),
-                    )
-                        .with_kda(current_kda.0, current_kda.1, current_kda.2)
-                }
-                shaco::model::ingame::GameEvent::TurretKilled(e) => {
-                    GameEvent::new(
-                        e.event_id,
-                        EventType::Objective,
-                        e.event_time as f64,
-                        "Turret".to_string(),
-                    )
-                        .with_actor(e.killer_name.clone().to_string())
-                        .with_kda(current_kda.0, current_kda.1, current_kda.2)
-
-                }
-                shaco::model::ingame::GameEvent::InhibKilled(e) => {
-                    GameEvent::new(
-                        e.event_id,
-                        EventType::Objective,
-                        e.event_time as f64,
-                        "Inhibitor".to_string(),
-                    )
-                        .with_actor(e.killer_name.clone().to_string())
-                        .with_kda(current_kda.0, current_kda.1, current_kda.2)
-                }
+                shaco::model::ingame::GameEvent::BaronKill(e) => GameEvent::new(
+                    e.event_id,
+                    EventType::Objective,
+                    e.event_time as f64,
+                    "BaronKill".to_string(),
+                )
+                .with_actor(e.killer_name.clone().to_string())
+                .with_kda(current_kda.0, current_kda.1, current_kda.2),
+                shaco::model::ingame::GameEvent::Ace(e) => GameEvent::new(
+                    e.event_id,
+                    EventType::Special,
+                    e.event_time as f64,
+                    "Ace".to_string(),
+                )
+                .with_kda(current_kda.0, current_kda.1, current_kda.2),
+                shaco::model::ingame::GameEvent::TurretKilled(e) => GameEvent::new(
+                    e.event_id,
+                    EventType::Objective,
+                    e.event_time as f64,
+                    "Turret".to_string(),
+                )
+                .with_actor(e.killer_name.clone().to_string())
+                .with_kda(current_kda.0, current_kda.1, current_kda.2),
+                shaco::model::ingame::GameEvent::InhibKilled(e) => GameEvent::new(
+                    e.event_id,
+                    EventType::Objective,
+                    e.event_time as f64,
+                    "Inhibitor".to_string(),
+                )
+                .with_actor(e.killer_name.clone().to_string())
+                .with_kda(current_kda.0, current_kda.1, current_kda.2),
                 _ => continue,
             };
 
@@ -236,6 +232,12 @@ impl GameIntegrationTrait for LeagueOfLegendsIntegration {
                         team1: scores.kills as u32,
                         team2: scores.deaths as u32,
                     });
+
+                    state.kda = Some(KDA {
+                        kills: scores.kills as u32,
+                        deaths: scores.deaths as u32,
+                        assists: scores.assists as u32,
+                    });
                 }
             }
         }
@@ -254,6 +256,10 @@ impl GameIntegrationTrait for LeagueOfLegendsIntegration {
 
     fn get_game_name(&self) -> &str {
         "League of Legends"
+    }
+
+    fn get_kda(&self) -> Option<KDA> {
+        None
     }
 
     async fn get_new_events(&self) -> Result<Option<Vec<GameEvent>>> {

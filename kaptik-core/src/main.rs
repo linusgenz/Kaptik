@@ -8,7 +8,8 @@ mod logger;
 mod recorder;
 mod settings;
 mod tray;
-pub mod apm;
+mod apm;
+mod recording_storage;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

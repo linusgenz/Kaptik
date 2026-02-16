@@ -2,9 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::any::Any;
 
 pub mod events;
-pub mod event_storage;
-pub mod league_of_legends;
 pub(crate) mod manager;
+mod games;
 
 // Re-export wichtiger Typen
 pub use events::GameEvent;
@@ -33,11 +32,19 @@ pub struct MemoryOffset {
     pub offsets: Vec<usize>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct KDA {
+    pub kills: u32,
+    pub deaths: u32,
+    pub assists: u32,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameState {
     pub is_in_round: bool,
     pub round_number: Option<u32>,
     pub character_name: Option<String>,
+    pub kda: Option<KDA>,
     pub map_name: Option<String>,
     pub team: Option<String>,
     pub score: Option<Score>,
@@ -55,6 +62,7 @@ impl Default for GameState {
             is_in_round: false,
             round_number: None,
             character_name: None,
+            kda: None,
             map_name: None,
             team: None,
             score: None,
@@ -62,21 +70,19 @@ impl Default for GameState {
     }
 }
 
-/// Trait für alle Spiel-Integrationen
 #[async_trait::async_trait]
 pub trait GameIntegrationTrait: Send + Sync {
-    /// Initialisierung der Integration
     async fn initialize(&mut self) -> anyhow::Result<()>;
 
-    /// Aktuellen Spielzustand abrufen
     async fn get_game_state(&self) -> anyhow::Result<GameState>;
 
-    /// Prüfen ob aktuell eine Runde läuft
     async fn is_in_round(&self) -> bool;
 
     async fn get_character_name(&self) -> anyhow::Result<Option<String>>;
 
     fn get_game_name(&self) -> &str;
+
+    fn get_kda(&self) -> Option<KDA>;
 
     async fn get_new_events(&self) -> anyhow::Result<Option<Vec<GameEvent>>> {
         Ok(None)

@@ -8,7 +8,6 @@ use windows::Graphics::Capture::{Direct3D11CaptureFramePool, GraphicsCaptureSess
 use windows::Graphics::DirectX::DirectXPixelFormat;
 use windows::core::*;
 
-use crate::recorder::RecordingMetadata;
 use crate::recorder::audio::WasapiCapture;
 use crate::recorder::capture::core::d3d;
 use crate::recorder::capture::core::ffmpeg::FfmpegEncoder;
@@ -16,7 +15,7 @@ use crate::recorder::capture::core::tonemap::ToneMapRenderer;
 use crate::recorder::capture::core::utils;
 use crate::settings::SETTINGS;
 use crate::{log, settings};
-
+use crate::recording_storage::RecordingMetadata;
 use super::frame::CapturedFrame;
 use super::{audio, encoder_task, interop};
 

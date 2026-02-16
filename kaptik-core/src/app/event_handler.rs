@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
-use tokio::sync::{RwLock, mpsc};
-use uuid::Uuid;
+use tokio::sync::{mpsc, RwLock};
 
 use crate::game_integration::manager::GameIntegrationManager;
 use crate::log;
@@ -17,6 +16,20 @@ pub fn spawn(
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         log!("📋 Event Handler Thread started");
+
+        // Setup event forwarding from integration manager to recorder
+        {
+            let recorder_clone = recorder.clone();
+            integration_manager
+                .set_event_callback(move |event| {
+                    let rec = recorder_clone.clone();
+                    tokio::spawn(async move {
+                        rec.add_event(event).await;
+                    });
+                })
+                .await;
+            log!("✅ Event forwarding setup complete");
+        }
 
         while let Some(event) = event_rx.recv().await {
             let mut state = recording_state.write().await;
@@ -60,8 +73,6 @@ pub fn spawn(
                                     match result {
                                         Ok(Ok(recording_id)) => {
                                             log!("✅ Recording started with ID: {}", recording_id);
-                                            // Start event recording mit der gleichen ID
-                                            mgr.start_event_recording(recording_id).await;
                                         }
                                         Ok(Err(e)) => {
                                             log!("❌ Recording start error: {}", e);
@@ -90,7 +101,6 @@ pub fn spawn(
                                     match result {
                                         Ok(Ok(recording_id)) => {
                                             log!("✅ Recording started with ID: {}", recording_id);
-                                            mgr.start_event_recording(recording_id).await;
                                         }
                                         Ok(Err(e)) => {
                                             log!("❌ Recording start error: {}", e);
@@ -115,18 +125,11 @@ pub fn spawn(
                     state.active_games.retain(|g| g.name != name);
 
                     if state.is_recording && state.current_game.as_ref() == Some(&name) {
-                        log!("⏹️ Game over, stop recording");
+                        log!("Game stopped, stopping recording");
 
                         let rec = recorder.clone();
-                        let mgr = integration_manager.clone();
                         drop(state);
 
-                        // Stop event recording first
-                        if let Err(e) = mgr.stop_event_recording().await {
-                            log!("❌ Error stopping event recording: {}", e);
-                        }
-
-                        // Then stop video recording
                         let result = tokio::task::spawn_blocking(move || {
                             tokio::runtime::Handle::current()
                                 .block_on(async { rec.stop_recording().await })
@@ -153,10 +156,10 @@ pub fn spawn(
                 }
 
                 RecorderEvent::StartRecording(_requested_game_name) => {
-                    log!("▶️ Manual start recording");
+                    log!("▶️  Manual start recording");
 
                     if state.is_recording {
-                        log!("⚠️ Already recording");
+                        log!("⚠️  Already recording");
                         continue;
                     }
 
@@ -171,7 +174,6 @@ pub fn spawn(
                         // Get game state
                         let game_state = mgr.get_current_state().await;
 
-                        // Start recording
                         let result = tokio::task::spawn_blocking(move || {
                             tokio::runtime::Handle::current().block_on(async {
                                 rec.start_recording(&window_title, game_state).await
@@ -182,9 +184,6 @@ pub fn spawn(
                         match result {
                             Ok(Ok(recording_id)) => {
                                 log!("✅ Recording started with ID: {}", recording_id);
-
-                                // Start event recording
-                                mgr.start_event_recording(recording_id).await;
 
                                 let mut state = recording_state.write().await;
                                 state.is_recording = true;
@@ -198,28 +197,21 @@ pub fn spawn(
                             }
                         }
                     } else {
-                        log!("⚠️ No active game found");
+                        log!("⚠️  No active game found");
                     }
                 }
 
                 RecorderEvent::StopRecording => {
-                    log!("⏹️ Manual Stop Recording");
+                    log!("⏹️  Manual stop recording");
 
                     if !state.is_recording {
-                        log!("⚠️ No active recording");
+                        log!("⚠️  No active recording");
                         continue;
                     }
 
                     let rec = recorder.clone();
-                    let mgr = integration_manager.clone();
                     drop(state);
 
-                    // Stop event recording first
-                    if let Err(e) = mgr.stop_event_recording().await {
-                        log!("❌ Error stopping event recording: {}", e);
-                    }
-
-                    // Then stop video recording
                     let result = tokio::task::spawn_blocking(move || {
                         tokio::runtime::Handle::current()
                             .block_on(async { rec.stop_recording().await })

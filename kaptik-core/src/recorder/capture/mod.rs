@@ -1,27 +1,27 @@
-use super::RecordingMetadata;
-use crate::game_integration::GameState;
+use crate::game_integration::{GameState, events::GameEvent};
 use crate::log;
-use crate::apm::{input_hook::InputHook, save_apm_msgpack, APMData, APMTracker};
+use crate::apm::{input_hook::InputHook, APMTracker};
 use anyhow::Result;
 use core::utils;
 use parking_lot::Mutex;
 use std::path::PathBuf;
 use std::sync::Arc;
 use strategy::{create_strategy, CaptureMethod, CaptureStrategy};
-use tokio::fs;
 use tokio::sync::RwLock;
 use uuid::Uuid;
+use crate::recording_storage::{get_recording_path, save_recording_data, RecordingData, RecordingMetadata};
 
 pub(crate) mod core;
 pub mod strategy;
 mod windows_graphics;
 
-/// Windows Capture Recorder mit APM Tracking
 pub struct WindowsCaptureRecorder {
     is_recording: Arc<RwLock<bool>>,
     strategy: Arc<RwLock<Box<dyn CaptureStrategy>>>,
     input_hook: InputHook,
     apm_tracker: Arc<Mutex<APMTracker>>,
+    current_recording_data: Arc<RwLock<Option<RecordingData>>>,
+    recording_start_time: Arc<RwLock<Option<std::time::Instant>>>,
 }
 
 impl WindowsCaptureRecorder {
@@ -33,6 +33,8 @@ impl WindowsCaptureRecorder {
             strategy: Arc::new(RwLock::new(create_strategy(method))),
             input_hook: InputHook::new(apm_tracker.clone()),
             apm_tracker,
+            current_recording_data: Arc::new(RwLock::new(None)),
+            recording_start_time: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -67,6 +69,10 @@ impl WindowsCaptureRecorder {
         );
         let rid = metadata.recording_id.clone();
 
+        // Initialize RecordingData
+        *self.current_recording_data.write().await = Some(RecordingData::new(metadata.clone()));
+        *self.recording_start_time.write().await = Some(std::time::Instant::now());
+
         let filename = metadata.generate_filename();
         let output_path = self.get_output_path(&filename).await?;
 
@@ -82,10 +88,12 @@ impl WindowsCaptureRecorder {
         self.apm_tracker.lock().start_recording();
         self.input_hook.start();
 
+        log!("✅ Recording started with ID: {}", rid);
+
         Ok(rid)
     }
 
-    pub async fn stop_recording(&self) -> Result<()> {
+    pub async fn stop_recording(&self, game_state: Option<GameState>,) -> Result<()> {
         if !*self.is_recording.read().await {
             return Ok(());
         }
@@ -97,57 +105,80 @@ impl WindowsCaptureRecorder {
             .clone();
 
         self.input_hook.stop();
-        self.apm_tracker.lock().stop_recording();  
+        self.apm_tracker.lock().stop_recording();
 
         let output_path = strategy.stop_capture().await?;
 
-        log!("✅ Recording saved to: {}", output_path.display());
+        log!("✅ Video recording saved to: {}", output_path.display());
 
-        let mut dir = dirs::data_local_dir()
-            .ok_or_else(|| anyhow::anyhow!("No local data dir found"))?;
+        // Calculate duration
+        let duration = if let Some(start_time) = *self.recording_start_time.read().await {
+            start_time.elapsed().as_secs_f64()
+        } else {
+            0.0
+        };
 
-        dir.push("Kaptik");
-        dir.push("recordings");
-
-        fs::create_dir_all(&dir).await?;
-
-        let apm_file_path: PathBuf = dir.join(format!("{}.apm", metadata.recording_id));
-
-        self.save_apm_data(&apm_file_path).await?;
-
-        *self.is_recording.write().await = false;
-
-        Ok(())
-    }
-
-    async fn save_apm_data(&self, apm_path: &PathBuf) -> Result<()> {
+        // Get APM data
         let series = self
             .apm_tracker
             .lock()
             .compute_apm_series(20.0, 1.0, true);
 
-        if series.is_empty() {
-            log!("No APM data recorded");
-            return Ok(());
+        if let Some(mut recording_data) = self.current_recording_data.write().await.take() {
+            recording_data.set_apm_data(series);
+            recording_data.finalize(duration);
+
+            let path = get_recording_path(&metadata.recording_id)?;
+
+            let recording_data_clone = recording_data.clone();
+            let path_clone = path.clone();
+            tokio::task::spawn_blocking(move || {
+                if let Err(e) = save_recording_data(&recording_data_clone, &path_clone) {
+                    log!("❌ Failed to save recording data: {}", e);
+                } else {
+                    log!("💾 Recording data saved to: {}", path_clone.display());
+                    log!(
+                        "   📊 {} events, {} APM samples",
+                        recording_data_clone.events.len(),
+                        recording_data_clone.apm.series.len()
+                    );
+                    if let Some(avg) = recording_data_clone.apm.average_apm {
+                        log!("   📈 Average APM: {:.1}", avg);
+                    }
+                }
+            });
         }
 
-        let apm_data = APMData { series };
-        let apm_path = apm_path.clone();
-
-        tokio::task::spawn_blocking(move || {
-            if let Err(e) = save_apm_msgpack(&apm_data, &apm_path) {
-                log!("Failed to save APM data: {}", e);
-            } else {
-                log!("APM data saved to: {}", apm_path.display());
-            }
-        });
+        *self.recording_start_time.write().await = None;
+        *self.is_recording.write().await = false;
 
         Ok(())
+    }
+
+    /// Add a game event to the current recording
+    pub async fn add_event(&self, mut event: GameEvent) {
+        if let Some(ref mut data) = *self.current_recording_data.write().await {
+            // Set timestamp relative to recording start
+            if let Some(start_time) = *self.recording_start_time.read().await {
+                let elapsed = start_time.elapsed().as_secs_f64();
+                event.timestamp = elapsed;
+            }
+
+            data.add_event(event);
+        }
     }
 
     pub async fn get_current_metadata(&self) -> Option<RecordingMetadata> {
         let strategy = self.strategy.read().await;
         strategy.get_metadata().cloned()
+    }
+
+    pub async fn get_current_recording_id(&self) -> Option<Uuid> {
+        self.current_recording_data
+            .read()
+            .await
+            .as_ref()
+            .map(|data| data.metadata.recording_id)
     }
 
     async fn get_output_path(&self, filename: &str) -> Result<PathBuf> {

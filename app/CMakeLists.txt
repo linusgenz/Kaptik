@@ -32,10 +32,9 @@ qt_add_executable(appKaptik
     thumbnailprovider.h
     IpcClient.cpp
     IpcClient.h
-    ApmLoader.cpp
-    ApmLoader.h
-    EventLoader.cpp
-    EventLoader.h
+    DataLoader.cpp
+    DataLoader.h
+
     ${RESOURCES}
     ${APP_ICON_RESOURCE}
 )

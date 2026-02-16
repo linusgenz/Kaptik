@@ -26,8 +26,7 @@ QVariant ClipModel::data(const QModelIndex &index, int role) const {
     case DurationMsRole: return clip.durationMs;
     case ThumbnailRole:
         return QString("image://thumbnails/%1").arg(index.row());
-    case ApmPathRole: return clip.apmPath;
-    case EventsPathRole: return clip.eventsPath;
+    case DataFilePathRole: return clip.dataFilePath;
     default: return {};
     }
 }
@@ -40,8 +39,7 @@ QHash<int, QByteArray> ClipModel::roleNames() const {
         {DurationRole, "duration"},
         {DurationMsRole, "durationMs"},
         {ThumbnailRole, "thumbnail"},
-        {ApmPathRole, "apmPath"},
-        {EventsPathRole, "eventsPath"}
+        {DataFilePathRole, "dataFilePath"},
     };
 }
 
@@ -87,8 +85,14 @@ void ClipModel::loadFromPath(const QString &dirPath) {
         QString recordingId = getRecordingIdFromVideo(clip.path);
 
         if (!recordingId.isEmpty()) {
-            clip.apmPath = getApmPathForRecording(recordingId);
-            clip.eventsPath = getEventsPathForRecording(recordingId);
+            QDir dir(QDir::homePath() + "/AppData/Local/Kaptik/recordings");
+
+            QString filePath = dir.filePath(recordingId + ".msgpack");
+
+            if (QFileInfo::exists(filePath)) {
+                clip.dataFilePath = filePath;
+                qDebug() << clip.dataFilePath;
+            }
         }
 
         m_clips.append(clip);
