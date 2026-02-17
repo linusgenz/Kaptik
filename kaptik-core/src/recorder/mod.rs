@@ -11,7 +11,7 @@ use crate::game_detection;
 pub enum RecorderEvent {
     GameDetected(game_detection::GameProcess),
     GameStopped(String),
-    StartRecording(Option<String>),
+    StartRecording(),
     StopRecording,
 }
 

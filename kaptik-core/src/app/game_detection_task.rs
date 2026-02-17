@@ -40,7 +40,7 @@ pub fn spawn(
                 log!("🛑 Game closed: {}", name);
                 let mgr = integration_mgr.clone();
                 tokio::spawn(async move {
-                    mgr.stop_active_integration().await;
+                    mgr.deactivate().await;
                 });
                 let _ = game_event_tx.send(RecorderEvent::GameStopped(name.clone()));
             }

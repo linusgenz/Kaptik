@@ -1,8 +1,8 @@
-use crate::game_integration::{GameState, events::GameEvent};
+// capture/mod.rs
+use crate::game_integration::{GameName, GameState, events::GameEvent};
 use crate::log;
 use crate::apm::{input_hook::InputHook, APMTracker};
 use anyhow::Result;
-use core::utils;
 use parking_lot::Mutex;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -52,9 +52,17 @@ impl WindowsCaptureRecorder {
         *self.is_recording.read().await
     }
 
+    /// Start recording a window.
+    ///
+    /// `game_name` is the canonical [`GameName`] for this session.  Pass
+    /// [`GameName::from_display`] when an integration is active (so the name
+    /// comes from the integration's hardcoded string), or
+    /// [`GameName::from_window_title`] as a fallback when no integration is
+    /// registered for the running game.
     pub async fn start_recording(
         &self,
         window_title: &str,
+        game_name: GameName,
         game_state: Option<GameState>,
     ) -> Result<Uuid> {
         if *self.is_recording.read().await {
@@ -62,12 +70,12 @@ impl WindowsCaptureRecorder {
         }
 
         let metadata = RecordingMetadata::with_game_state(
-            utils::extract_game_name(window_title),
+            game_name,
             game_state.as_ref().and_then(|s| s.character_name.clone()),
             game_state.as_ref().and_then(|s| s.map_name.clone()),
             game_state.as_ref().and_then(|s| s.round_number),
         );
-        let rid = metadata.recording_id.clone();
+        let rid = metadata.recording_id;
 
         // Initialize RecordingData
         *self.current_recording_data.write().await = Some(RecordingData::new(metadata.clone()));
@@ -76,7 +84,11 @@ impl WindowsCaptureRecorder {
         let filename = metadata.generate_filename();
         let output_path = self.get_output_path(&filename).await?;
 
-        log!("🎬 Starting recording: {}", filename);
+        log!(
+            "🎬 Starting recording: {} (game: {})",
+            filename,
+            metadata.game_name.display,
+        );
 
         let mut strategy = self.strategy.write().await;
         strategy
@@ -93,7 +105,7 @@ impl WindowsCaptureRecorder {
         Ok(rid)
     }
 
-    pub async fn stop_recording(&self, final_state: Option<GameState>,) -> Result<()> {
+    pub async fn stop_recording(&self, final_state: Option<GameState>) -> Result<()> {
         if !*self.is_recording.read().await {
             return Ok(());
         }

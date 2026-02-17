@@ -7,6 +7,7 @@ use anyhow::Result;
 use chrono::{DateTime, Local};
 use crate::domain::game_stats::KDA;
 use crate::game_integration::events::GameEvent;
+use crate::game_integration::GameName;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RecordingData {
@@ -18,7 +19,7 @@ pub struct RecordingData {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RecordingMetadata {
     pub recording_id: Uuid,
-    pub game_name: String,
+    pub game_name: GameName,
     pub character_name: Option<String>,
     pub kda: Option<KDA>,
     pub map_name: Option<String>,
@@ -37,7 +38,7 @@ pub struct APMData {
 
 impl RecordingMetadata {
     pub fn with_game_state(
-        game_name: String,
+        game_name: GameName,
         character_name: Option<String>,
         map_name: Option<String>,
         round_number: Option<u32>,
@@ -65,7 +66,8 @@ impl RecordingMetadata {
     pub fn generate_filename(&self) -> String {
         let timestamp = self.timestamp.format("%Y-%m-%d_%H-%M-%S");
 
-        let mut parts = vec![self.game_name.clone()];
+        // Use the filesystem-safe slug, never the display name.
+        let mut parts = vec![self.game_name.file_slug.clone()];
 
         if let Some(ref character) = self.character_name {
             parts.push(character.clone());
