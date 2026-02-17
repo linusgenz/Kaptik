@@ -128,11 +128,20 @@ pub fn spawn(
                         log!("Game stopped, stopping recording");
 
                         let rec = recorder.clone();
+                        let mgr = integration_manager.clone();
+
+                        let final_state = match mgr.get_current_state().await {
+                            Some(state) if state.kda.is_some() => Some(state),
+                            _ => {
+                                mgr.get_last_known_state().await
+                            }
+                        };
+                        
                         drop(state);
 
                         let result = tokio::task::spawn_blocking(move || {
                             tokio::runtime::Handle::current()
-                                .block_on(async { rec.stop_recording().await })
+                                .block_on(async { rec.stop_recording(final_state).await })
                         })
                             .await;
 
@@ -210,11 +219,20 @@ pub fn spawn(
                     }
 
                     let rec = recorder.clone();
+                    let mgr = integration_manager.clone();
+
+                    let final_state = match mgr.get_current_state().await {
+                        Some(state) if state.kda.is_some() => Some(state),
+                        _ => {
+                            mgr.get_last_known_state().await
+                        }
+                    };
+
                     drop(state);
 
                     let result = tokio::task::spawn_blocking(move || {
                         tokio::runtime::Handle::current()
-                            .block_on(async { rec.stop_recording().await })
+                            .block_on(async { rec.stop_recording(final_state).await })
                     })
                         .await;
 

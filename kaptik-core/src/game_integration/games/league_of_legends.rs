@@ -12,6 +12,7 @@ pub struct LeagueOfLegendsIntegration {
     last_event_id: Arc<RwLock<u32>>,
     pub(crate) player_name: Arc<RwLock<Option<String>>>,
     pub(crate) player_name_short: Arc<RwLock<Option<String>>>,
+    pub(crate) final_state: Arc<RwLock<Option<GameState>>>,
 }
 
 impl LeagueOfLegendsIntegration {
@@ -21,6 +22,7 @@ impl LeagueOfLegendsIntegration {
             last_event_id: Arc::new(RwLock::new(0)),
             player_name: Arc::new(RwLock::new(None)),
             player_name_short: Arc::new(RwLock::new(None)),
+            final_state: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -151,6 +153,30 @@ impl LeagueOfLegendsIntegration {
                 )
                 .with_actor(e.killer_name.clone().to_string())
                 .with_kda(current_kda.0, current_kda.1, current_kda.2),
+                shaco::model::ingame::GameEvent::GameEnd(e) => {
+                    let (kills, deaths, assists) =
+                        self.get_player_scores().await.unwrap_or((0, 0, 0));
+
+                    let mut snapshot = GameState::default();
+                    snapshot.character_name = self.fetch_champion_name().await.ok().flatten();
+                    snapshot.kda = Some(KDA {
+                        kills,
+                        deaths,
+                        assists,
+                    });
+
+                    // In Cache schreiben
+                    *self.final_state.write().await = Some(snapshot);
+
+                    log!(
+                        "📸 Final state captured at GameEnd: {}/{}/{}",
+                        kills,
+                        deaths,
+                        assists
+                    );
+
+                    continue;
+                }
                 _ => continue,
             };
 
@@ -207,38 +233,34 @@ impl GameIntegrationTrait for LeagueOfLegendsIntegration {
 
     async fn get_game_state(&self) -> Result<GameState> {
         let client = self.client.read().await;
+
+        if !client.active_game().await {
+            let cached = self.final_state.read().await.clone();
+            return Ok(cached.unwrap_or_default());
+        }
+
         let mut state = GameState::default();
+        state.is_in_round = true;
 
-        if client.active_game().await {
-            state.is_in_round = true;
+        if let Ok(full_name) = client.active_player_name().await {
+            let short_name = full_name.split('#').next().map(|s| s.to_string());
+            *self.player_name_short.write().await = short_name;
+            *self.player_name.write().await = Some(full_name);
+        }
 
-            if let Ok(full_name) = client.active_player_name().await {
-                let short_name = full_name.split('#').next().map(|s| s.to_string());
+        state.character_name = self.fetch_champion_name().await?;
 
-                *self.player_name_short.write().await = short_name;
+        if let Ok(stats) = client.game_stats().await {
+            state.map_name = Some(stats.map_name.to_string());
+        }
 
-                *self.player_name.write().await = Some(full_name);
-            }
-
-            state.character_name = self.fetch_champion_name().await?;
-
-            if let Ok(stats) = client.game_stats().await {
-                state.map_name = Some(stats.map_name.to_string());
-            }
-
-            if let Some(name) = self.player_name.read().await.as_ref() {
-                if let Ok(scores) = client.player_scores(name).await {
-                    state.score = Some(Score {
-                        team1: scores.kills as u32,
-                        team2: scores.deaths as u32,
-                    });
-
-                    state.kda = Some(KDA {
-                        kills: scores.kills as u32,
-                        deaths: scores.deaths as u32,
-                        assists: scores.assists as u32,
-                    });
-                }
+        if let Some(name) = self.player_name_short.read().await.as_ref() {
+            if let Ok(scores) = client.player_scores(name).await {
+                state.kda = Some(KDA {
+                    kills: scores.kills as u32,
+                    deaths: scores.deaths as u32,
+                    assists: scores.assists as u32,
+                });
             }
         }
 

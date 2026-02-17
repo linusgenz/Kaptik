@@ -5,7 +5,7 @@ use std::io::BufReader;
 
 use rmpv::decode::read_value;
 use rmpv::Value;
-
+use kaptik_core::domain::game_stats::KDA;
 use kaptik_core::recording_storage::{load_recording_data, RecordingData};
 
 fn main() {
@@ -71,10 +71,14 @@ fn show_info(path: &str) {
     let data = load_file(path);
     let m = &data.metadata;
 
+    let kda = m.kda.as_ref().unwrap_or(&KDA { kills: 0, deaths: 0, assists: 0 });
+    let kda_string = format!("{}/{}/{}", kda.kills, kda.deaths, kda.assists);
+
     println!("🎮 Recording Info");
     println!("ID: {}", m.recording_id);
     println!("Game: {}", m.game_name);
     println!("Character: {}", m.character_name.as_deref().unwrap_or("-"));
+    println!("KDA: {}", kda_string);
     println!("Map: {}", m.map_name.as_deref().unwrap_or("-"));
     println!("Round: {:?}", m.round_number);
     println!("Timestamp: {}", m.timestamp);

@@ -5,8 +5,8 @@ pub mod events;
 pub(crate) mod manager;
 mod games;
 
-// Re-export wichtiger Typen
 pub use events::GameEvent;
+use crate::domain::game_stats::KDA;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GameIntegration {
@@ -30,13 +30,6 @@ pub struct MemoryOffset {
     pub name: String,
     pub base_address: String,
     pub offsets: Vec<usize>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct KDA {
-    pub kills: u32,
-    pub deaths: u32,
-    pub assists: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

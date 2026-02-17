@@ -13,6 +13,7 @@ pub struct GameIntegrationManager {
     active_task: Arc<Mutex<Option<JoinHandle<()>>>>,
 
     event_callback: Arc<RwLock<Option<Arc<dyn Fn(GameEvent) + Send + Sync>>>>,
+    last_known_state: Arc<RwLock<Option<GameState>>>,
 }
 
 impl GameIntegrationManager {
@@ -22,6 +23,7 @@ impl GameIntegrationManager {
             active_integration: Arc::new(RwLock::new(None)),
             active_task: Arc::new(Mutex::new(None)),
             event_callback: Arc::new(RwLock::new(None)),
+            last_known_state: Arc::new(RwLock::new(None)),
         };
 
         manager.register_integration(
@@ -68,11 +70,20 @@ impl GameIntegrationManager {
 
         if let Some(ref game_name) = *active {
             if let Some(integration) = self.integrations.get(game_name) {
-                return integration.read().await.get_game_state().await.ok();
+                if let Ok(state) = integration.read().await.get_game_state().await {
+                    if state.is_in_round || state.kda.is_some() {
+                        *self.last_known_state.write().await = Some(state.clone());
+                    }
+                    return Some(state);
+                }
             }
         }
 
         None
+    }
+
+    pub async fn get_last_known_state(&self) -> Option<GameState> {
+        self.last_known_state.read().await.clone()
     }
 
     pub async fn is_in_round(&self) -> bool {
@@ -103,6 +114,7 @@ impl GameIntegrationManager {
         let active = self.active_integration.clone();
         let integrations = self.integrations.clone();
         let event_callback = self.event_callback.clone();
+        let last_known_state = self.last_known_state.clone();
 
         let handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
@@ -123,8 +135,11 @@ impl GameIntegrationManager {
                         guard.clone()
                     };
 
-                    // Get current state (optional logging)
+
                     if let Ok(state) = integration.read().await.get_game_state().await {
+                        if state.is_in_round || state.kda.is_some() {
+                            *last_known_state.write().await = Some(state.clone());
+                        }
                         log!(
                             "[State] In-Round: {} | Character: {:?} | Map: {:?}",
                             state.is_in_round,

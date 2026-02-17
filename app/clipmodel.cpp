@@ -1,6 +1,8 @@
 #include "clipmodel.h"
 #include <QDateTime>
 #include "win/videometadata.h"
+#include "dataloader.h"
+#include <QQmlPropertyMap>
 
 ClipModel::ClipModel(QObject* parent)
     : QAbstractListModel(parent)
@@ -27,6 +29,7 @@ QVariant ClipModel::data(const QModelIndex &index, int role) const {
     case ThumbnailRole:
         return QString("image://thumbnails/%1").arg(index.row());
     case DataFilePathRole: return clip.dataFilePath;
+    case KdaRole: return clip.kda;
     default: return {};
     }
 }
@@ -40,6 +43,7 @@ QHash<int, QByteArray> ClipModel::roleNames() const {
         {DurationMsRole, "durationMs"},
         {ThumbnailRole, "thumbnail"},
         {DataFilePathRole, "dataFilePath"},
+        {KdaRole, "kda"},
     };
 }
 
@@ -92,6 +96,20 @@ void ClipModel::loadFromPath(const QString &dirPath) {
             if (QFileInfo::exists(filePath)) {
                 clip.dataFilePath = filePath;
                 qDebug() << clip.dataFilePath;
+
+                DataLoader loader;
+                QVariantMap metadata = loader.loadRecordingMetadata(filePath);
+
+                if (metadata.contains("kda") && metadata["kda"].isValid()) {
+                    QVariantMap kdaMap = metadata["kda"].toMap();
+
+                    QVariantMap kda;
+                    kda["kills"]   = kdaMap.value("kills", 0);
+                    kda["deaths"]  = kdaMap.value("deaths", 0);
+                    kda["assists"] = kdaMap.value("assists", 0);
+
+                    clip.kda = kda;
+                }
             }
         }
 

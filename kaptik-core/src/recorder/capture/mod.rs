@@ -93,7 +93,7 @@ impl WindowsCaptureRecorder {
         Ok(rid)
     }
 
-    pub async fn stop_recording(&self, game_state: Option<GameState>,) -> Result<()> {
+    pub async fn stop_recording(&self, final_state: Option<GameState>,) -> Result<()> {
         if !*self.is_recording.read().await {
             return Ok(());
         }
@@ -125,6 +125,12 @@ impl WindowsCaptureRecorder {
             .compute_apm_series(20.0, 1.0, true);
 
         if let Some(mut recording_data) = self.current_recording_data.write().await.take() {
+            if let Some(state) = final_state {
+                if let Some(kda) = state.kda {
+                    recording_data.metadata.set_kda(kda);
+                }
+            }
+
             recording_data.set_apm_data(series);
             recording_data.finalize(duration);
 

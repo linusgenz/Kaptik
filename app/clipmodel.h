@@ -14,6 +14,7 @@ struct Clip {
     QString date;
     QImage thumbnail;
     QString dataFilePath;
+    QVariant kda;
 };
 
 class ClipModel : public QAbstractListModel {
@@ -28,6 +29,7 @@ public:
         DurationMsRole,
         ThumbnailRole,
         DataFilePathRole,
+        KdaRole
     };
     explicit ClipModel(QObject* parent = nullptr);
 

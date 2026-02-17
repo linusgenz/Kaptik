@@ -104,6 +104,8 @@ Item {
 
                             // KDA badge
                             Rectangle {
+                                visible: model.kda !== undefined && model.kda !== null
+
                                 anchors.left: parent.left
                                 anchors.bottom: parent.bottom
                                 anchors.margins: 8
@@ -116,7 +118,11 @@ Item {
                                 Label {
                                     id: kdaLabel
                                     anchors.centerIn: parent
-                                    text: "10/2/22"
+                                    text: {
+                                        var kda = model.kda
+                                        if (!kda) return ""
+                                        return kda.kills + "/" + kda.deaths + "/" + kda.assists
+                                    }
                                     font.pixelSize: 12
                                     color: "#ffffff"
                                 }

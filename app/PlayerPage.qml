@@ -391,7 +391,7 @@ RowLayout {
 
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: currentApmData.length > 0 ? 150 : 80
+                Layout.preferredHeight: currentApmData.length > 0 ? 150 : 100
                 color: bgSecondary
                 radius: 12
 

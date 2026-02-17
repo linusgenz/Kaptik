@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use uuid::Uuid;
 use anyhow::Result;
 use chrono::{DateTime, Local};
+use crate::domain::game_stats::KDA;
 use crate::game_integration::events::GameEvent;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -12,13 +13,6 @@ pub struct RecordingData {
     pub metadata: RecordingMetadata,
     pub apm: APMData,
     pub events: Vec<GameEvent>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct KDA {
-    pub kills: u32,
-    pub deaths: u32,
-    pub assists: u32,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

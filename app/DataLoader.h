@@ -13,6 +13,7 @@ public:
     explicit DataLoader(QObject *parent = nullptr);
 
     Q_INVOKABLE QVariantMap loadRecordingData(const QString &filePath);
+    QVariantMap loadRecordingMetadata(const QString &filePath);
 
 private:
     QVariantMap parseMetadata(const msgpack::object& obj);

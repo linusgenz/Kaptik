@@ -71,6 +71,59 @@ QVariantMap DataLoader::loadRecordingData(const QString &filePath)
     return result;
 }
 
+QVariantMap DataLoader::loadRecordingMetadata(const QString &filePath)
+{
+    QVariantMap metadata;
+
+    try {
+        std::ifstream ifs(filePath.toStdString(), std::ios::binary);
+        if (!ifs.is_open()) {
+            qWarning() << "Could not open recording file:" << filePath;
+            return metadata;
+        }
+
+        std::vector<char> buffer(
+            (std::istreambuf_iterator<char>(ifs)),
+            std::istreambuf_iterator<char>()
+            );
+        ifs.close();
+
+        if (buffer.empty()) {
+            qWarning() << "Recording file is empty:" << filePath;
+            return metadata;
+        }
+
+        msgpack::object_handle oh = msgpack::unpack(buffer.data(), buffer.size());
+        msgpack::object obj = oh.get();
+
+        // Root muss ARRAY sein
+        if (obj.type != msgpack::type::ARRAY) {
+            qWarning() << "Invalid root format — expected ARRAY, got:" << (int)obj.type;
+            return metadata;
+        }
+
+        const auto* root_arr = &obj.via.array;
+
+        if (root_arr->size < 1) {
+            qWarning() << "Root array has no metadata";
+            return metadata;
+        }
+
+        metadata = parseMetadata(root_arr->ptr[0]);
+
+        qDebug() << "Loaded metadata for game:"
+                 << metadata["game_name"]
+                 << "character:" << metadata["character_name"]
+                << "kda:" << metadata["kda"];
+
+    } catch (const std::exception& e) {
+        qWarning() << "Error loading recording metadata:" << e.what();
+    }
+
+    return metadata;
+}
+
+
 QVariantMap DataLoader::parseMetadata(const msgpack::object& obj)
 {
     QVariantMap metadata;
@@ -125,34 +178,65 @@ QVariantMap DataLoader::parseMetadata(const msgpack::object& obj)
     // Index 2: character_name (Option<String>)
     metadata["character_name"] = parseOptionalString(meta_arr->ptr[2]);
 
-    // Index 3: map_name (Option<String>)
-    metadata["map_name"] = parseOptionalString(meta_arr->ptr[3]);
+    // Index 3: kda (Option<KDA>)
+    if (meta_arr->ptr[3].type != msgpack::type::NIL) {
+        const auto& kda_obj = meta_arr->ptr[3];
 
-    // Index 4: round_number (Option<u32>)
-    if (meta_arr->ptr[4].type != msgpack::type::NIL) {
+        if (kda_obj.type == msgpack::type::ARRAY && kda_obj.via.array.size == 3) {
+            const auto* kda_arr = &kda_obj.via.array;
+
+            try {
+                uint64_t kills64 = 0, deaths64 = 0, assists64 = 0;
+
+                kda_arr->ptr[0].convert(kills64);
+                kda_arr->ptr[1].convert(deaths64);
+                kda_arr->ptr[2].convert(assists64);
+
+                QVariantMap kdaMap;
+                kdaMap["kills"] = static_cast<int>(kills64);
+                kdaMap["deaths"] = static_cast<int>(deaths64);
+                kdaMap["assists"] = static_cast<int>(assists64);
+
+                metadata["kda"] = kdaMap;
+            }
+            catch (const std::exception& e) {
+                qWarning() << "Failed to parse KDA:" << e.what();
+            }
+        }
+        else {
+            qWarning() << "Invalid KDA format, type:" << (int)kda_obj.type
+                       << "size:" << (kda_obj.type == msgpack::type::ARRAY ? kda_obj.via.array.size : 0);
+        }
+    }
+
+    // Index 4: map_name (Option<String>)
+    metadata["map_name"] = parseOptionalString(meta_arr->ptr[4]);
+
+    // Index 5: round_number (Option<u32>)
+    if (meta_arr->ptr[5].type != msgpack::type::NIL) {
         uint32_t round;
-        meta_arr->ptr[4].convert(round);
+        meta_arr->ptr[5].convert(round);
         metadata["round_number"] = static_cast<int>(round);
     }
 
-    // Index 5: timestamp (DateTime string)
-    if (meta_arr->ptr[5].type == msgpack::type::STR) {
+    // Index 6: timestamp (DateTime string)
+    if (meta_arr->ptr[6].type == msgpack::type::STR) {
         std::string timestamp;
-        meta_arr->ptr[5].convert(timestamp);
+        meta_arr->ptr[6].convert(timestamp);
         metadata["timestamp"] = QString::fromStdString(timestamp);
     }
 
-    // Index 6: recording_start (u64)
-    if (meta_arr->ptr[6].type == msgpack::type::POSITIVE_INTEGER) {
+    // Index 7: recording_start (u64)
+    if (meta_arr->ptr[7].type == msgpack::type::POSITIVE_INTEGER) {
         uint64_t start;
-        meta_arr->ptr[6].convert(start);
+        meta_arr->ptr[7].convert(start);
         metadata["recording_start"] = static_cast<qint64>(start);
     }
 
-    // Index 7: duration_seconds (Option<f64>)
-    if (meta_arr->ptr[7].type != msgpack::type::NIL) {
+    // Index 8: duration_seconds (Option<f64>)
+    if (meta_arr->ptr[8].type != msgpack::type::NIL) {
         double duration;
-        meta_arr->ptr[7].convert(duration);
+        meta_arr->ptr[8].convert(duration);
         metadata["duration_seconds"] = duration;
     }
 

@@ -10,6 +10,7 @@ mod settings;
 mod tray;
 mod apm;
 mod recording_storage;
+mod domain;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

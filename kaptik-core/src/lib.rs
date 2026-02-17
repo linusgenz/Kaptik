@@ -5,7 +5,7 @@ pub mod settings;
 pub mod logger;
 pub mod ipc;
 pub mod game_detection;
-
 pub mod tray;
 pub mod apm;
 pub mod recording_storage;
+pub mod domain;
