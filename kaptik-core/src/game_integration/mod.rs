@@ -57,7 +57,6 @@ impl GameName {
                 '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
                 c => c,
             })
-            // Collapse consecutive underscores that illegal-char replacement can create.
             .collect::<String>()
             .split('_')
             .filter(|p| !p.is_empty())

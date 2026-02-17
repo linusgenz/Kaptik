@@ -14,6 +14,55 @@ use crate::recorder::audio::wasapi::AudioSample;
 use crate::recorder::capture::core::tonemap::ToneMapRenderer;
 use crate::{ffmpeg_log, log};
 
+/// Which hardware encoder is available on this system.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum HwEncoder {
+    Nvenc,    // NVIDIA
+    Amf,      // AMD
+    Qsv,      // Intel Quick Sync
+    Software, // fallback: libx264
+}
+
+impl HwEncoder {
+    pub fn detect() -> Self {
+        let candidates = [
+            (HwEncoder::Nvenc, "h264_nvenc"),
+            (HwEncoder::Amf, "h264_amf"),
+            (HwEncoder::Qsv, "h264_qsv"),
+        ];
+
+        for (encoder, codec) in &candidates {
+            let ok = std::process::Command::new("ffmpeg")
+                .args([
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    "nullsrc=s=256x256",
+                    "-t",
+                    "0.1",
+                    "-c:v",
+                    codec,
+                    "-f",
+                    "null",
+                    "-",
+                ])
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false);
+
+            if ok {
+                log!("🎮 Hardware encoder detected: {}", codec);
+                return *encoder;
+            }
+        }
+
+        log!("⚙️ No hardware encoder found, falling back to libx264 (slow preset)");
+        HwEncoder::Software
+    }
+}
+
 struct VideoFrame {
     data: Vec<u8>,
     width: u32,
@@ -49,7 +98,7 @@ pub struct FfmpegEncoder {
     last_log_time: std::time::Instant,
     recording_start: std::time::Instant,
 
-    recording_uuid: Uuid
+    recording_uuid: Uuid,
 }
 
 impl FfmpegEncoder {
@@ -67,11 +116,13 @@ impl FfmpegEncoder {
         tonemap: Option<ToneMapRenderer>,
         game_audio_format: Option<WAVEFORMATEX>,
         microphone_format: Option<WAVEFORMATEX>,
-        recording_uuid: Uuid
+        recording_uuid: Uuid,
     ) -> Result<Self> {
         let mut config_dir = dirs::config_dir().unwrap();
         config_dir.push("Kaptik");
         let temp_video_path = config_dir.with_extension("temp.mp4");
+
+        let hw_encoder = HwEncoder::detect();
 
         let video_args = build_video_ffmpeg_args(
             width,
@@ -81,6 +132,7 @@ impl FfmpegEncoder {
             fps,
             is_hdr,
             tonemap.is_some(),
+            hw_encoder,
         );
 
         log!("🔧 FFmpeg Video Args: ffmpeg {}", video_args.join(" "));
@@ -145,7 +197,7 @@ impl FfmpegEncoder {
             frame_count: 0,
             last_log_time: std::time::Instant::now(),
             recording_start: std::time::Instant::now(),
-            recording_uuid
+            recording_uuid,
         })
     }
 
@@ -189,12 +241,8 @@ impl FfmpegEncoder {
         drop(stdin);
 
         match process.wait() {
-            Ok(status) => {
-                log!("✅ Video FFmpeg beendet: {}", status);
-            }
-            Err(e) => {
-                log!("⚠️ Video FFmpeg wait error: {}", e);
-            }
+            Ok(status) => log!("✅ Video FFmpeg beendet: {}", status),
+            Err(e) => log!("⚠️ Video FFmpeg wait error: {}", e),
         }
     }
 
@@ -268,14 +316,9 @@ impl FfmpegEncoder {
         Ok(())
     }
 
-    // This is the method that session.rs calls
     pub fn write_audio_sample(&mut self, sample: &AudioSample) -> Result<()> {
-        // Add to buffer
         self.audio_buffer.push_back(sample.data.clone());
-
-        // Flush based on time
         self.flush_audio_buffer()?;
-
         Ok(())
     }
 
@@ -289,7 +332,6 @@ impl FfmpegEncoder {
             None => return Ok(()),
         };
 
-        // Time-based sync: write audio to match elapsed time
         let elapsed = self.recording_start.elapsed().as_secs_f64();
         let target_samples = (elapsed * self.audio_sample_rate as f64) as u64;
         let current_samples = self.audio_samples_written;
@@ -300,12 +342,10 @@ impl FfmpegEncoder {
             0
         };
 
-        // Only flush if we have a decent buffer OR we're behind schedule
         if samples_needed == 0 && self.audio_buffer.len() < 10 {
             return Ok(());
         }
 
-        // Write samples from buffer
         while !self.audio_buffer.is_empty() {
             let chunk = self.audio_buffer.pop_front().unwrap();
             writer.write_all(&chunk)?;
@@ -313,7 +353,6 @@ impl FfmpegEncoder {
             let samples_in_chunk = chunk.len() / (self.audio_channels as usize * 2);
             self.audio_samples_written += samples_in_chunk as u64;
 
-            // Stop if we've written enough
             if samples_needed > 0 && self.audio_samples_written >= target_samples {
                 break;
             }
@@ -325,7 +364,6 @@ impl FfmpegEncoder {
     pub fn finalize(mut self) -> Result<()> {
         log!("🔍 Finalisiere Encoding...");
 
-        // Flush all remaining audio
         if let Some(writer) = &mut self.audio_writer {
             while let Some(chunk) = self.audio_buffer.pop_front() {
                 writer.write_all(&chunk)?;
@@ -336,8 +374,10 @@ impl FfmpegEncoder {
         }
 
         log!("Recording duration: {:?}", self.recording_start.elapsed());
-        log!("Video duration estimate: {}s", self.frame_count as f64 / self.fps as f64);
-
+        log!(
+            "Video duration estimate: {}s",
+            self.frame_count as f64 / self.fps as f64
+        );
         log!(
             "📊 Frames: {}, Audio Samples: {}",
             self.frame_count,
@@ -413,12 +453,13 @@ impl FfmpegEncoder {
             "-c:a",
             "aac",
             "-b:a",
-            "192k",
+            "128k", // 192k → 128k, for gaming audio more than sufficient
             "-async",
             "1",
             "-af",
             "aresample=async=1:first_pts=0",
-            "-metadata", &metadata_arg,
+            "-metadata",
+            &metadata_arg,
             "-shortest",
             "-y",
             self.output_path.to_str().unwrap(),
@@ -510,11 +551,10 @@ fn build_video_ffmpeg_args(
     fps: u32,
     is_hdr: bool,
     has_tonemap: bool,
+    hw_encoder: HwEncoder,
 ) -> Vec<String> {
-    let mut args = vec!["-f", "rawvideo", "-pixel_format"]
-        .into_iter()
-        .map(String::from)
-        .collect::<Vec<_>>();
+    // ── Input pixel format ───────────────────────────────────────────────────
+    let mut args: Vec<String> = vec!["-f".into(), "rawvideo".into(), "-pixel_format".into()];
 
     if is_hdr && !has_tonemap {
         args.extend(
@@ -531,7 +571,7 @@ fn build_video_ffmpeg_args(
             .map(|s| s.to_string()),
         );
     } else {
-        args.push("bgra".to_string());
+        args.push("bgra".into());
     }
 
     args.extend(
@@ -551,7 +591,12 @@ fn build_video_ffmpeg_args(
     );
 
     if is_hdr && !has_tonemap {
-        args.push(format!("zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,tonemap=tonemap=reinhard:desat=0,zscale=t=bt709:m=bt709:r=tv,format=yuv420p,scale=w={}:h={}:flags=lanczos", width, height));
+        args.push(format!(
+            "zscale=t=linear:npl=100,format=gbrpf32le,zscale=p=bt709,\
+             tonemap=tonemap=reinhard:desat=0,zscale=t=bt709:m=bt709:r=tv,\
+             format=yuv420p,scale=w={}:h={}:flags=lanczos",
+            width, height
+        ));
     } else {
         args.push(format!(
             "scale=w={}:h={}:flags=lanczos,format=yuv420p",
@@ -559,28 +604,134 @@ fn build_video_ffmpeg_args(
         ));
     }
 
-    args.extend(
-        [
-            "-c:v",
-            "libx264",
-            "-preset",
-            "ultrafast",
-            "-tune",
-            "zerolatency",
-            "-crf",
-            "23",
-            "-profile:v",
-            "high",
-            "-pix_fmt",
-            "yuv420p",
-            "-movflags",
-            "+faststart",
-            "-an",
-            "-y",
-        ]
-        .iter()
-        .map(|s| s.to_string()),
-    );
+    match hw_encoder {
+        // NVIDIA NVENC
+        HwEncoder::Nvenc => {
+            args.extend(
+                [
+                    "-c:v",
+                    "h264_nvenc",
+                    "-preset",
+                    "p4",
+                    "-tune",
+                    "hq",
+                    "-rc",
+                    "vbr",
+                    "-cq",
+                    "26",
+                    "-b:v",
+                    "0",
+                    "-maxrate",
+                    "12M",
+                    "-bufsize",
+                    "24M",
+                    "-profile:v",
+                    "high",
+                    "-pix_fmt",
+                    "yuv420p",
+                    "-movflags",
+                    "+faststart",
+                    "-an",
+                    "-y",
+                ]
+                .iter()
+                .map(|s| s.to_string()),
+            );
+        }
+
+        // AMD AMF
+        HwEncoder::Amf => {
+            args.extend(
+                [
+                    "-c:v",
+                    "h264_amf",
+                    "-quality",
+                    "quality",
+                    "-rc",
+                    "vbr_latency",
+                    "-qp_i",
+                    "24",
+                    "-qp_p",
+                    "26",
+                    "-qp_b",
+                    "28",
+                    "-maxrate",
+                    "12M",
+                    "-bufsize",
+                    "24M",
+                    "-profile:v",
+                    "high",
+                    "-pix_fmt",
+                    "yuv420p",
+                    "-movflags",
+                    "+faststart",
+                    "-an",
+                    "-y",
+                ]
+                .iter()
+                .map(|s| s.to_string()),
+            );
+        }
+
+        // Intel Quick Sync
+        HwEncoder::Qsv => {
+            args.extend(
+                [
+                    "-c:v",
+                    "h264_qsv",
+                    "-preset",
+                    "veryslow",
+                    "-global_quality",
+                    "26",
+                    "-look_ahead",
+                    "1",
+                    "-maxrate",
+                    "12M",
+                    "-bufsize",
+                    "24M",
+                    "-profile:v",
+                    "high",
+                    "-pix_fmt",
+                    "yuv420p",
+                    "-movflags",
+                    "+faststart",
+                    "-an",
+                    "-y",
+                ]
+                .iter()
+                .map(|s| s.to_string()),
+            );
+        }
+
+        //  libx264
+        HwEncoder::Software => {
+            args.extend(
+                [
+                    "-c:v",
+                    "libx264",
+                    "-preset",
+                    "slow",
+                    "-crf",
+                    "26",
+                    "-maxrate",
+                    "12M",
+                    "-bufsize",
+                    "24M",
+                    "-profile:v",
+                    "high",
+                    "-pix_fmt",
+                    "yuv420p",
+                    "-movflags",
+                    "+faststart",
+                    "-an",
+                    "-y",
+                ]
+                .iter()
+                .map(|s| s.to_string()),
+            );
+        }
+    }
+
     args
 }
 
