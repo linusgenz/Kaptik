@@ -49,6 +49,8 @@ ApplicationWindow {
     property bool videoSelectedNotPlaying: false
     property bool videoHasBeenPlayed: false
 
+    property string searchText: ""
+
     onCurrentVideoSourceChanged: {
         if (currentVideoSource !== "") {
             videoSelectedNotPlaying = true
@@ -179,9 +181,105 @@ ApplicationWindow {
                     color: textPrimary
                 }
 
-                Item {
-                    Layout.fillWidth: true
+                Item { Layout.fillWidth: true }
+
+                // Search Bar
+                Rectangle {
+                    Layout.preferredWidth: 280
+                    height: 32
+                    radius: 8
+                    color: darkMode ? "#3a3a3a" : "#ececec"
+                    border.color: searchField.activeFocus ? accentBlue : "transparent"
+                    border.width: 2
+
+                    Behavior on border.color {
+                        ColorAnimation { duration: 150 }
+                    }
+
+                    Image {
+                        id: searchIcon
+                        anchors.left: parent.left
+                        anchors.leftMargin: 10
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 14
+                        height: 14
+                        source: "qrc:/resources/icons/system-search-symbolic.svg"
+                        fillMode: Image.PreserveAspectFit
+                        opacity: 0.45
+
+                        ColorOverlay {
+                            anchors.fill: parent
+                            source: parent
+                            color: currentView === 1 ? "#ffffff" : textSecondary
+                        }
+                    }
+
+                    TextField {
+                        id: searchField
+                        anchors.left: searchIcon.right
+                        anchors.leftMargin: 6
+                        anchors.right: clearBtn.visible ? clearBtn.left : parent.right
+                        anchors.rightMargin: 8
+                        anchors.verticalCenter: parent.verticalCenter
+                        height: parent.height
+
+                        placeholderText: "Search captures…"
+                        font.pixelSize: 13
+                        color: textPrimary
+                        verticalAlignment: TextInput.AlignVCenter
+
+                        leftPadding: 0
+                        rightPadding: 0
+                        topPadding: 0
+                        bottomPadding: 0
+
+                        background: Item {}
+
+                        onTextChanged: root.searchText = text
+                    }
+
+                    Item {
+                        id: clearBtn
+                        anchors.right: parent.right
+                        anchors.rightMargin: 8
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 14
+                        height: 14
+                        visible: searchField.text.length > 0
+
+                        Image {
+                            anchors.centerIn: parent
+                            width: 16
+                            height: 16
+                            source: "qrc:/resources/icons/window-close-symbolic.svg"
+                            fillMode: Image.PreserveAspectFit
+                            opacity: clearArea.containsMouse ? 1.0 : 0.45
+
+                            Behavior on opacity {
+                                NumberAnimation { duration: 120 }
+                            }
+
+                            ColorOverlay {
+                                anchors.fill: parent
+                                source: parent
+                                color: currentView === 1 ? "#ffffff" : textSecondary
+                            }
+                        }
+
+                        MouseArea {
+                            id: clearArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                searchField.text = ""
+                                root.searchText = ""
+                            }
+                        }
+                    }
                 }
+
+                Item { Layout.fillWidth: true }
 
                 // Capture Button
                 RoundButton {
@@ -223,20 +321,20 @@ ApplicationWindow {
         }
 
         StackLayout {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                currentIndex: currentView
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            currentIndex: currentView
 
-                GridPage { id: gridPage }
-                PlayerPage { id: playerPage }
-                SettingsPage { id: settingsPage }
+            GridPage { id: gridPage }
+            PlayerPage { id: playerPage }
+            SettingsPage { id: settingsPage }
 
-                Connections {
-                    target: root
-                    function onVideoSelected(dataFilePath) {
-                        playerPage.loadDataForVideo(dataFilePath)
-                    }
+            Connections {
+                target: root
+                function onVideoSelected(dataFilePath) {
+                    playerPage.loadDataForVideo(dataFilePath)
                 }
             }
+        }
     }
 }

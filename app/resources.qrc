@@ -16,6 +16,8 @@
         <file>icons/view-grid-symbolic.svg</file>
         <file>icons/kaptik_logo_transparent.png</file>
         <file>icons/camera-video-symbolic.svg</file>
+        <file>icons/system-search-symbolic.svg</file>
+        <file>icons/window-close-symbolic.svg</file>
     </qresource>
     <qresource prefix="/">
         <file>BaseRoundButton.qml</file>

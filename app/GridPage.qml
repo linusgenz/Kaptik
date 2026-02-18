@@ -2,7 +2,7 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import Qt5Compat.GraphicalEffects
-
+import QtQml.Models 2.15
 import App 1.0
 
 Item {
@@ -17,7 +17,41 @@ Item {
             cellWidth: 320
             cellHeight: 240
 
-            model: clipModel
+            model: filteredModel
+
+            DelegateModel {
+                id: filteredModel
+                model: clipModel
+                filterOnGroup: "included"
+
+                groups: [
+                    DelegateModelGroup {
+                        name: "included"
+                        includeByDefault: true
+                    }
+                ]
+
+                function applyFilter() {
+                    for (var i = 0; i < items.count; i++) {
+                        var item = items.get(i)
+                        var name = item.model.name ?? ""
+                        var match = root.searchText === "" || name.toLowerCase().indexOf(root.searchText.toLowerCase()) !== -1
+
+                        if (match && !item.inIncluded) {
+                            item.groups = ["items", "included"]
+                        } else if (!match && item.inIncluded) {
+                            item.groups = ["items"]
+                        }
+                    }
+                }
+
+                Component.onCompleted: applyFilter()
+            }
+
+            Connections {
+                target: root
+                function onSearchTextChanged() { filteredModel.applyFilter() }
+            }
 
             delegate: Item {
                 width: 320
@@ -47,7 +81,7 @@ Item {
 
                         onClicked: {
                             root.currentVideoSource = model.path
-                            root.currentVideoIndex = index
+                            root.currentVideoIndex = model.index
                             root.currentView = 1
                             root.videoSelected(model.dataFilePath)
                         }
@@ -145,19 +179,20 @@ Item {
                                     anchors.centerIn: parent
                                     text: model.game_outcome
                                     font.pixelSize: 12
+                                    font.bold: true
                                     font.capitalization: Font.AllUppercase
                                     color: {
-                                                switch (model.game_outcome) {
-                                                    case "Victory":
-                                                        return "#00FF00";
-                                                    case "Lose":
-                                                        return "#FF0000";
-                                                    case "Draw":
-                                                        return "#AAAAAA";
-                                                    default:
-                                                        return "#FFFFFF";
-                                                }
-                                            }
+                                        switch (model.game_outcome) {
+                                        case "Victory":
+                                            return "#00FF00";
+                                        case "Defeat":
+                                            return "#FF0000";
+                                        case "Draw":
+                                            return "#AAAAAA";
+                                        default:
+                                            return "#FFFFFF";
+                                        }
+                                    }
                                 }
                             }
 
@@ -254,7 +289,7 @@ Item {
                 Layout.alignment: Qt.AlignHCenter
 
                 Label {
-                    text: "No captures yet"
+                    text: "No captures matching this criteria"
                     font.pixelSize: 20
                     font.weight: Font.DemiBold
                     color: textPrimary

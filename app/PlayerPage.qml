@@ -44,7 +44,41 @@ RowLayout {
                 clip: true
                 spacing: 4
 
-                model: clipModel
+                model: filteredModel
+
+                DelegateModel {
+                    id: filteredModel
+                    model: clipModel
+                    filterOnGroup: "included"
+
+                    groups: [
+                        DelegateModelGroup {
+                            name: "included"
+                            includeByDefault: true
+                        }
+                    ]
+
+                    function applyFilter() {
+                        for (var i = 0; i < items.count; i++) {
+                            var item = items.get(i)
+                            var name = item.model.name ?? ""
+                            var match = root.searchText === "" || name.toLowerCase().indexOf(root.searchText.toLowerCase()) !== -1
+
+                            if (match && !item.inIncluded) {
+                                item.groups = ["items", "included"]
+                            } else if (!match && item.inIncluded) {
+                                item.groups = ["items"]
+                            }
+                        }
+                    }
+
+                    Component.onCompleted: applyFilter()
+                }
+
+                Connections {
+                    target: root
+                    function onSearchTextChanged() { filteredModel.applyFilter() }
+                }
 
                 delegate: ItemDelegate {
                     width: captureList.width
@@ -72,7 +106,7 @@ RowLayout {
                             }
 
                             root.currentVideoSource = model.path
-                            root.currentVideoIndex = index
+                            root.currentVideoIndex = model.index
 
                             loadDataForVideo(model.dataFilePath)
                         }
