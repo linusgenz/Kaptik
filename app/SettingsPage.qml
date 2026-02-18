@@ -466,7 +466,7 @@ Item {
                             }
 
                             Label {
-                                text: "Version 1.0.0"
+                                text: "Version 0.2.0"
                                 font.pixelSize: 14
                                 color: textSecondary
                             }

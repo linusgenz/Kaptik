@@ -15,6 +15,7 @@ struct Clip {
     QImage thumbnail;
     QString dataFilePath;
     QVariant kda;
+    QString  game_outcome;
 };
 
 class ClipModel : public QAbstractListModel {
@@ -29,7 +30,8 @@ public:
         DurationMsRole,
         ThumbnailRole,
         DataFilePathRole,
-        KdaRole
+        KdaRole,
+        GameOutcomeRole
     };
     explicit ClipModel(QObject* parent = nullptr);
 

@@ -62,32 +62,32 @@ Item {
                             Layout.preferredHeight: 150
 
                             OpacityMask {
-                                    id: mask
+                                id: mask
+                                anchors.fill: parent
+
+                                source: Image {
                                     anchors.fill: parent
+                                    source: index >= 0 ? "image://thumbnails/" + index : ""
+                                    fillMode: Image.PreserveAspectCrop
+                                    asynchronous: true
+                                    cache: true
+                                }
 
-                                    source: Image {
-                                        anchors.fill: parent
-                                        source: index >= 0 ? "image://thumbnails/" + index : ""
-                                        fillMode: Image.PreserveAspectCrop
-                                        asynchronous: true
-                                        cache: true
-                                    }
+                                maskSource: Rectangle {
+                                    width: mask.width
+                                    height: mask.height
 
-                                    maskSource: Rectangle {
-                                       width: mask.width
-                                        height: mask.height
+                                    radius: 12
+                                    color: "white"
 
-                                        radius: 12
+                                    Rectangle {
+                                        anchors.bottom: parent.bottom
+                                        width: parent.width
+                                        height: radius
                                         color: "white"
-
-                                        Rectangle {
-                                            anchors.bottom: parent.bottom
-                                            width: parent.width
-                                            height: radius
-                                            color: "white"
-                                        }
                                     }
                                 }
+                            }
 
                             // Gradient for readability
                             Rectangle {
@@ -104,6 +104,7 @@ Item {
 
                             // KDA badge
                             Rectangle {
+                                id: kdaBadge
                                 visible: model.kda !== undefined && model.kda !== null
 
                                 anchors.left: parent.left
@@ -125,6 +126,38 @@ Item {
                                     }
                                     font.pixelSize: 12
                                     color: "#ffffff"
+                                }
+                            }
+
+                            Rectangle {
+                                visible: model.game_outcome !== undefined && model.game_outcome !== ""
+                                anchors.left: kdaBadge.right
+                                anchors.bottom: kdaBadge.bottom
+                                anchors.leftMargin: 4
+                                height: 24
+                                width: badgeLabel.implicitWidth + 16
+                                radius: 4
+                                color: "#000000"
+                                opacity: 0.85
+
+                                Label {
+                                    id: badgeLabel
+                                    anchors.centerIn: parent
+                                    text: model.game_outcome
+                                    font.pixelSize: 12
+                                    font.capitalization: Font.AllUppercase
+                                    color: {
+                                                switch (model.game_outcome) {
+                                                    case "Victory":
+                                                        return "#00FF00";
+                                                    case "Lose":
+                                                        return "#FF0000";
+                                                    case "Draw":
+                                                        return "#AAAAAA";
+                                                    default:
+                                                        return "#FFFFFF";
+                                                }
+                                            }
                                 }
                             }
 

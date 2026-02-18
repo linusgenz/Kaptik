@@ -1,7 +1,7 @@
 // game_integration/manager.rs
 
 use super::{GameEvent, GameIdentifier, GameIntegrationTrait, GameState};
-use crate::game_integration::games::league_of_legends::LeagueOfLegendsIntegration;
+use crate::game_integration::games::league_of_legends::integration::LeagueOfLegendsIntegration;
 use crate::log;
 
 use std::collections::HashMap;

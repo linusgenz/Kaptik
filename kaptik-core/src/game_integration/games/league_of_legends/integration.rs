@@ -1,11 +1,13 @@
-// game_integration/games/league_of_legends.rs
-use crate::game_integration::{GameEvent, GameIdentifier, GameIntegrationTrait, GameState};
-use crate::game_integration::events::{EventType};
-use crate::domain::game_stats::KDA;
+// game_integration/games/league_of_legends/integration.rs
+use crate::domain::game_stats::{GameOutcome, KDA};
+use crate::game_integration::events::EventType;
+use crate::game_integration::{GameEvent, GameIntegrationTrait, GameState};
 use crate::log;
 
+use crate::game_integration::games::league_of_legends::game_mode::game_mode_to_string;
 use anyhow::Result;
 use shaco::ingame::IngameClient;
+use shaco::model::ingame::GameResult;
 use std::any::Any;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -51,7 +53,6 @@ impl LeagueOfLegendsIntegration {
         }
     }
 
-
     async fn fetch_champion_name(&self) -> Result<Option<String>> {
         let player = self.player.read().await;
         let full_name = match player.full_name.as_deref() {
@@ -67,18 +68,23 @@ impl LeagueOfLegendsIntegration {
             .map(|p| p.champion_name))
     }
 
-    /// Returns `(kills, deaths, assists)` for the active player, or `(0,0,0)`
-    /// on any error.
-    async fn fetch_kda_tuple(&self) -> (u32, u32, u32) {
+    /// Returns KDA for the active player.
+    /// - `Some(KDA)` → successfully fetched (even if 0/0/0)
+    /// - `None` → could not fetch (API error / player unknown)
+    async fn fetch_kda(&self) -> Option<KDA> {
         let player = self.player.read().await;
         let Some(name) = player.full_name.clone() else {
-            return (0, 0, 0);
+            return None;
         };
         drop(player);
 
         match self.client.player_scores(&name).await {
-            Ok(s) => (s.kills as u32, s.deaths as u32, s.assists as u32),
-            Err(_) => (0, 0, 0),
+            Ok(s) => Some(KDA {
+                kills: s.kills as u32,
+                deaths: s.deaths as u32,
+                assists: s.assists as u32,
+            }),
+            Err(_) => None,
         }
     }
 
@@ -100,8 +106,14 @@ impl LeagueOfLegendsIntegration {
         let shaco_events = self.client.event_data(None).await?;
 
         let last_id = *self.last_event_id.read().await;
-        let current_kda = self.fetch_kda_tuple().await;
-        let player_short = self.player.read().await.short().map(str::to_string).unwrap_or_default();
+        let current_kda = self.fetch_kda().await;
+        let player_short = self
+            .player
+            .read()
+            .await
+            .short()
+            .map(str::to_string)
+            .unwrap_or_default();
 
         let mut new_events: Vec<GameEvent> = Vec::new();
 
@@ -128,7 +140,7 @@ impl LeagueOfLegendsIntegration {
         &self,
         event: shaco::model::ingame::GameEvent,
         player_short: &str,
-        kda: (u32, u32, u32),
+        kda: Option<KDA>,
     ) -> Option<GameEvent> {
         use shaco::model::ingame::Killer;
 
@@ -147,7 +159,10 @@ impl LeagueOfLegendsIntegration {
                     return None;
                 }
 
-                let event_type = if is_killer {
+                let event_type = if is_killer && is_victim {
+                    // Practice Tool "kill champion button" player killed themselves → count as death
+                    EventType::Death
+                } else if is_killer {
                     EventType::Kill
                 } else if is_victim {
                     EventType::Death
@@ -162,10 +177,10 @@ impl LeagueOfLegendsIntegration {
                         e.event_time as f64,
                         event_type.to_string(),
                     )
-                        .with_actor(killer_name.unwrap_or("Unknown").to_owned())
-                        .with_target(e.victim_name)
-                        .with_participants(e.assisters)
-                        .with_kda(kda.0, kda.1, kda.2),
+                    .with_actor(killer_name.unwrap_or("Unknown").to_owned())
+                    .with_target(e.victim_name)
+                    .with_participants(e.assisters)
+                    .with_kda(kda),
                 )
             }
 
@@ -182,37 +197,66 @@ impl LeagueOfLegendsIntegration {
                 }
 
                 Some(
-                    GameEvent::new(e.event_id, EventType::Objective, e.event_time as f64, "Dragon".to_string())
-                        .with_actor(killer_name.unwrap_or("Unknown").to_owned())
-                        .with_kda(kda.0, kda.1, kda.2),
+                    GameEvent::new(
+                        e.event_id,
+                        EventType::Objective,
+                        e.event_time as f64,
+                        "Dragon".to_string(),
+                    )
+                    .with_actor(killer_name.unwrap_or("Unknown").to_owned())
+                    .with_kda(kda),
                 )
             }
 
             shaco::model::ingame::GameEvent::BaronKill(e) => Some(
-                GameEvent::new(e.event_id, EventType::Objective, e.event_time as f64, "BaronKill".to_string())
-                    .with_actor(e.killer_name.to_string())
-                    .with_kda(kda.0, kda.1, kda.2),
+                GameEvent::new(
+                    e.event_id,
+                    EventType::Objective,
+                    e.event_time as f64,
+                    "BaronKill".to_string(),
+                )
+                .with_actor(e.killer_name.to_string())
+                .with_kda(kda),
             ),
 
             shaco::model::ingame::GameEvent::Ace(e) => Some(
-                GameEvent::new(e.event_id, EventType::Special, e.event_time as f64, "Ace".to_string())
-                    .with_kda(kda.0, kda.1, kda.2),
+                GameEvent::new(
+                    e.event_id,
+                    EventType::Special,
+                    e.event_time as f64,
+                    "Ace".to_string(),
+                )
+                .with_kda(kda),
             ),
 
             shaco::model::ingame::GameEvent::TurretKilled(e) => Some(
-                GameEvent::new(e.event_id, EventType::Objective, e.event_time as f64, "Turret".to_string())
-                    .with_actor(e.killer_name.to_string())
-                    .with_kda(kda.0, kda.1, kda.2),
+                GameEvent::new(
+                    e.event_id,
+                    EventType::Objective,
+                    e.event_time as f64,
+                    "Turret".to_string(),
+                )
+                .with_actor(e.killer_name.to_string())
+                .with_kda(kda),
             ),
 
             shaco::model::ingame::GameEvent::InhibKilled(e) => Some(
-                GameEvent::new(e.event_id, EventType::Objective, e.event_time as f64, "Inhibitor".to_string())
-                    .with_actor(e.killer_name.to_string())
-                    .with_kda(kda.0, kda.1, kda.2),
+                GameEvent::new(
+                    e.event_id,
+                    EventType::Objective,
+                    e.event_time as f64,
+                    "Inhibitor".to_string(),
+                )
+                .with_actor(e.killer_name.to_string())
+                .with_kda(kda),
             ),
 
             shaco::model::ingame::GameEvent::GameEnd(_e) => {
-                self.capture_final_state(kda).await;
+                let outcome = match _e.result {
+                    GameResult::Win => GameOutcome::Victory,
+                    GameResult::Lose => GameOutcome::Lose,
+                };
+                self.capture_final_state(kda, outcome).await;
                 None
             }
 
@@ -220,20 +264,21 @@ impl LeagueOfLegendsIntegration {
         }
     }
 
-    /// Persists a final [`GameState`] snapshot so the recorder can attach KDA
+    /// Persists a final [`GameState`] snapshot so the recorder can attach KDA and other metadata
     /// after the in-game API has gone away.
-    async fn capture_final_state(&self, kda: (u32, u32, u32)) {
+    async fn capture_final_state(&self, kda: Option<KDA>, game_outcome: GameOutcome) {
         let champion = self.fetch_champion_name().await.ok().flatten();
 
         let snapshot = GameState {
             character_name: champion,
-            kda: Some(KDA { kills: kda.0, deaths: kda.1, assists: kda.2 }),
+            kda: kda.clone(),
+            game_outcome: Some(game_outcome),
             ..Default::default()
         };
 
         log!(
-            "📸 Final state captured at GameEnd: {}/{}/{}",
-            kda.0, kda.1, kda.2
+            "📸 Final state captured at GameEnd: {}",
+            kda.map_or("None".to_string(), |k| k.to_string())
         );
 
         *self.final_state.write().await = Some(snapshot);
@@ -280,12 +325,10 @@ impl GameIntegrationTrait for LeagueOfLegendsIntegration {
 
         if let Ok(stats) = self.client.game_stats().await {
             state.map_name = Some(stats.map_name.to_string());
+            state.game_mode = Some(game_mode_to_string(&stats.game_mode));
         }
 
-        let (kills, deaths, assists) = self.fetch_kda_tuple().await;
-        if kills > 0 || deaths > 0 || assists > 0 {
-            state.kda = Some(KDA { kills, deaths, assists });
-        }
+        state.kda = self.fetch_kda().await;
 
         Ok(state)
     }

@@ -114,7 +114,7 @@ QVariantMap DataLoader::loadRecordingMetadata(const QString &filePath)
         qDebug() << "Loaded metadata for game:"
                  << metadata["game_name"]
                  << "character:" << metadata["character_name"]
-                << "kda:" << metadata["kda"];
+                 << "kda:" << metadata["kda"];
 
     } catch (const std::exception& e) {
         qWarning() << "Error loading recording metadata:" << e.what();
@@ -169,18 +169,31 @@ QVariantMap DataLoader::parseMetadata(const msgpack::object& obj)
     }
 
     // Index 1: game_name
-    if (meta_arr->ptr[1].type == msgpack::type::STR) {
-        std::string game;
-        meta_arr->ptr[1].convert(game);
-        metadata["game_name"] = QString::fromStdString(game);
+    if (meta_arr->ptr[1].type == msgpack::type::ARRAY &&
+        meta_arr->ptr[1].via.array.size >= 2) {
+
+        std::string display;
+        std::string slug;
+
+        meta_arr->ptr[1].via.array.ptr[0].convert(display);
+        meta_arr->ptr[1].via.array.ptr[1].convert(slug);
+
+        metadata["game_name"] = QString::fromStdString(display);
+        metadata["game_slug"] = QString::fromStdString(slug);
     }
 
-    // Index 2: character_name (Option<String>)
-    metadata["character_name"] = parseOptionalString(meta_arr->ptr[2]);
+    // Index 2: game_mode (Option<String>)
+    metadata["game_mode"] = parseOptionalString(meta_arr->ptr[2]);
 
-    // Index 3: kda (Option<KDA>)
-    if (meta_arr->ptr[3].type != msgpack::type::NIL) {
-        const auto& kda_obj = meta_arr->ptr[3];
+    // Index 3: game_outcome (Option<GameOutcome>)
+    metadata["game_outcome"] = parseOptionalString(meta_arr->ptr[3]);
+
+    // Index 4: character_name (Option<String>)
+    metadata["character_name"] = parseOptionalString(meta_arr->ptr[4]);
+
+    // Index 5: kda (Option<KDA>)
+    if (meta_arr->ptr[5].type != msgpack::type::NIL) {
+        const auto& kda_obj = meta_arr->ptr[5];
 
         if (kda_obj.type == msgpack::type::ARRAY && kda_obj.via.array.size == 3) {
             const auto* kda_arr = &kda_obj.via.array;
@@ -209,34 +222,34 @@ QVariantMap DataLoader::parseMetadata(const msgpack::object& obj)
         }
     }
 
-    // Index 4: map_name (Option<String>)
-    metadata["map_name"] = parseOptionalString(meta_arr->ptr[4]);
+    // Index 6: map_name (Option<String>)
+    metadata["map_name"] = parseOptionalString(meta_arr->ptr[6]);
 
-    // Index 5: round_number (Option<u32>)
-    if (meta_arr->ptr[5].type != msgpack::type::NIL) {
+    // Index 7: round_number (Option<u32>)
+    if (meta_arr->ptr[7].type != msgpack::type::NIL) {
         uint32_t round;
-        meta_arr->ptr[5].convert(round);
+        meta_arr->ptr[7].convert(round);
         metadata["round_number"] = static_cast<int>(round);
     }
 
-    // Index 6: timestamp (DateTime string)
-    if (meta_arr->ptr[6].type == msgpack::type::STR) {
+    // Index 8: timestamp (DateTime string)
+    if (meta_arr->ptr[8].type == msgpack::type::STR) {
         std::string timestamp;
-        meta_arr->ptr[6].convert(timestamp);
+        meta_arr->ptr[8].convert(timestamp);
         metadata["timestamp"] = QString::fromStdString(timestamp);
     }
 
-    // Index 7: recording_start (u64)
-    if (meta_arr->ptr[7].type == msgpack::type::POSITIVE_INTEGER) {
+    // Index 9: recording_start (u64)
+    if (meta_arr->ptr[9].type == msgpack::type::POSITIVE_INTEGER) {
         uint64_t start;
-        meta_arr->ptr[7].convert(start);
+        meta_arr->ptr[9].convert(start);
         metadata["recording_start"] = static_cast<qint64>(start);
     }
 
-    // Index 8: duration_seconds (Option<f64>)
-    if (meta_arr->ptr[8].type != msgpack::type::NIL) {
+    // Index 10: duration_seconds (Option<f64>)
+    if (meta_arr->ptr[10].type != msgpack::type::NIL) {
         double duration;
-        meta_arr->ptr[8].convert(duration);
+        meta_arr->ptr[10].convert(duration);
         metadata["duration_seconds"] = duration;
     }
 

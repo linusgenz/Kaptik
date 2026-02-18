@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use uuid::Uuid;
 use anyhow::Result;
 use chrono::{DateTime, Local};
-use crate::domain::game_stats::KDA;
+use crate::domain::game_stats::{GameOutcome, KDA};
 use crate::game_integration::events::GameEvent;
 use crate::game_integration::GameName;
 
@@ -20,6 +20,8 @@ pub struct RecordingData {
 pub struct RecordingMetadata {
     pub recording_id: Uuid,
     pub game_name: GameName,
+    pub game_mode: Option<String>,
+    pub game_outcome: Option<GameOutcome>,
     pub character_name: Option<String>,
     pub kda: Option<KDA>,
     pub map_name: Option<String>,
@@ -37,15 +39,39 @@ pub struct APMData {
 }
 
 impl RecordingMetadata {
+    /// Creates a RecordingMetadata with only the GameName.
+    /// All optional fields are set to None.
+    pub fn new(game_name: GameName) -> Self {
+        Self {
+            recording_id: Uuid::new_v4(),
+            game_name,
+            character_name: None,
+            map_name: None,
+            game_mode: None,
+            game_outcome: None,
+            kda: None,
+            round_number: None,
+            timestamp: Local::now(),
+            recording_start: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+            duration_seconds: None,
+        }
+    }
+
     pub fn with_game_state(
         game_name: GameName,
         character_name: Option<String>,
         map_name: Option<String>,
+        game_mode: Option<String>,
         round_number: Option<u32>,
     ) -> Self {
         Self {
             recording_id: Uuid::new_v4(),
             game_name,
+            game_mode,
+            game_outcome: None,
             character_name,
             kda: None,
             map_name,
@@ -59,8 +85,12 @@ impl RecordingMetadata {
         }
     }
 
-    pub fn set_kda(&mut self, kda: KDA) {
-        self.kda = Some(kda);
+    pub fn set_kda(&mut self, kda: Option<KDA>) {
+        self.kda = kda;
+    }
+
+    pub fn set_game_outcome(&mut self, game_outcome: Option<GameOutcome>) {
+        self.game_outcome = game_outcome;
     }
 
     pub fn generate_filename(&self) -> String {

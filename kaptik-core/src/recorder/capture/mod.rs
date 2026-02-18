@@ -1,15 +1,17 @@
 // capture/mod.rs
+use crate::apm::{APMTracker, input_hook::InputHook};
 use crate::game_integration::{GameName, GameState, events::GameEvent};
 use crate::log;
-use crate::apm::{input_hook::InputHook, APMTracker};
+use crate::recording_storage::{
+    RecordingData, RecordingMetadata, get_recording_path, save_recording_data,
+};
 use anyhow::Result;
 use parking_lot::Mutex;
 use std::path::PathBuf;
 use std::sync::Arc;
-use strategy::{create_strategy, CaptureMethod, CaptureStrategy};
+use strategy::{CaptureMethod, CaptureStrategy, create_strategy};
 use tokio::sync::RwLock;
 use uuid::Uuid;
-use crate::recording_storage::{get_recording_path, save_recording_data, RecordingData, RecordingMetadata};
 
 pub(crate) mod core;
 pub mod strategy;
@@ -69,12 +71,12 @@ impl WindowsCaptureRecorder {
             return Err(anyhow::anyhow!("Already capturing"));
         }
 
-        let metadata = RecordingMetadata::with_game_state(
-            game_name,
-            game_state.as_ref().and_then(|s| s.character_name.clone()),
-            game_state.as_ref().and_then(|s| s.map_name.clone()),
-            game_state.as_ref().and_then(|s| s.round_number),
-        );
+        let metadata = if let Some(gs) = game_state {
+            RecordingMetadata::with_game_state(game_name, gs.character_name, gs.map_name, gs.game_mode, gs.round_number)
+        } else {
+            RecordingMetadata::new(game_name)
+        };
+
         let rid = metadata.recording_id;
 
         // Initialize RecordingData
@@ -99,8 +101,6 @@ impl WindowsCaptureRecorder {
 
         self.apm_tracker.lock().start_recording();
         self.input_hook.start();
-
-        log!("✅ Recording started with ID: {}", rid);
 
         Ok(rid)
     }
@@ -131,16 +131,12 @@ impl WindowsCaptureRecorder {
         };
 
         // Get APM data
-        let series = self
-            .apm_tracker
-            .lock()
-            .compute_apm_series(20.0, 1.0, true);
+        let series = self.apm_tracker.lock().compute_apm_series(20.0, 1.0, true);
 
         if let Some(mut recording_data) = self.current_recording_data.write().await.take() {
             if let Some(state) = final_state {
-                if let Some(kda) = state.kda {
-                    recording_data.metadata.set_kda(kda);
-                }
+                recording_data.metadata.set_kda(state.kda);
+                recording_data.metadata.set_game_outcome(state.game_outcome);
             }
 
             recording_data.set_apm_data(series);

@@ -30,6 +30,7 @@ QVariant ClipModel::data(const QModelIndex &index, int role) const {
         return QString("image://thumbnails/%1").arg(index.row());
     case DataFilePathRole: return clip.dataFilePath;
     case KdaRole: return clip.kda;
+    case GameOutcomeRole: return clip.game_outcome;
     default: return {};
     }
 }
@@ -44,6 +45,7 @@ QHash<int, QByteArray> ClipModel::roleNames() const {
         {ThumbnailRole, "thumbnail"},
         {DataFilePathRole, "dataFilePath"},
         {KdaRole, "kda"},
+        {GameOutcomeRole, "game_outcome"},
     };
 }
 
@@ -74,7 +76,7 @@ void ClipModel::loadFromPath(const QString &dirPath) {
     QStringList filters = {"*.mp4", "*.mkv", "*.avi"};
     QFileInfoList files = dir.entryInfoList(filters, QDir::Files, QDir::Time);
 
-    for (const auto &fileInfo : files) {
+    for (const auto &fileInfo : std::as_const(files)) {
         Clip clip;
         clip.name = fileInfo.baseName();
         clip.path = fileInfo.absoluteFilePath();
@@ -109,6 +111,12 @@ void ClipModel::loadFromPath(const QString &dirPath) {
                     kda["assists"] = kdaMap.value("assists", 0);
 
                     clip.kda = kda;
+                }
+
+                if (metadata.contains("game_outcome") && metadata["game_outcome"].isValid()) {
+                    clip.game_outcome = metadata["game_outcome"].toString();
+                } else {
+                    clip.game_outcome = "";
                 }
             }
         }

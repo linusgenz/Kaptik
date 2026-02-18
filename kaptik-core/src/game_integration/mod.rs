@@ -6,7 +6,7 @@ pub mod events;
 mod games;
 pub(crate) mod manager;
 
-use crate::domain::game_stats::KDA;
+use crate::domain::game_stats::{GameOutcome, KDA};
 pub use events::GameEvent;
 
 /// Always construct via [`GameName::from_display`] or [`GameName::from_window_title`]
@@ -141,6 +141,8 @@ pub struct Score {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct GameState {
     pub is_in_round: bool,
+    pub game_mode: Option<String>,
+    pub game_outcome: Option<GameOutcome>,
     pub round_number: Option<u32>,
     pub character_name: Option<String>,
     pub kda: Option<KDA>,
@@ -156,10 +158,6 @@ impl GameState {
         self.is_in_round || self.kda.is_some()
     }
 }
-
-// ─────────────────────────────────────────────
-// Integration trait
-// ─────────────────────────────────────────────
 
 /// Per-game integration contract.
 ///
