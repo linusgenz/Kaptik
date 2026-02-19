@@ -85,7 +85,7 @@ async fn handle_client(
 
         match cmd.type_ {
             ipc::CommandType::StartRecording => {
-                let _ = event_tx.send(RecorderEvent::StartRecording());
+                let _ = event_tx.send(RecorderEvent::StartRecording);
             }
             ipc::CommandType::StopRecording => {
                 let _ = event_tx.send(RecorderEvent::StopRecording);

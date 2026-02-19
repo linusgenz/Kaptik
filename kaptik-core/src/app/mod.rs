@@ -4,7 +4,6 @@ mod ipc_server;
 
 use std::sync::Arc;
 use tokio::sync::mpsc;
-use tokio::sync::watch;
 
 use crate::game_integration::manager::GameIntegrationManager;
 use crate::log;

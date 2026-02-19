@@ -6,7 +6,8 @@ use std::io::BufReader;
 use rmpv::decode::read_value;
 use rmpv::Value;
 use kaptik_core::domain::game_stats::KDA;
-use kaptik_core::recording_storage::{load_recording_data, RecordingData};
+use kaptik_core::domain::recording::RecordingData;
+use kaptik_core::recording_storage::{load_recording_data};
 
 fn main() {
     let args: Vec<String> = env::args().collect();

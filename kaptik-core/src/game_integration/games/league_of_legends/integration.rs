@@ -1,7 +1,6 @@
 // game_integration/games/league_of_legends/integration.rs
 use crate::domain::game_stats::{GameOutcome, KDA};
-use crate::game_integration::events::EventType;
-use crate::game_integration::{GameEvent, GameIntegrationTrait, GameState};
+use crate::game_integration::{GameIntegrationTrait};
 use crate::log;
 
 use crate::game_integration::games::league_of_legends::game_mode::game_mode_to_string;
@@ -11,6 +10,8 @@ use shaco::model::ingame::GameResult;
 use std::any::Any;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use crate::domain::events::{EventType, RecordingEvent};
+use crate::domain::game::GameState;
 
 #[derive(Debug, Clone, Default)]
 struct PlayerState {
@@ -100,9 +101,9 @@ impl LeagueOfLegendsIntegration {
         Ok(())
     }
 
-    /// Converts LoL-specific events into generic [`GameEvent`]s, filtering to
+    /// Converts LoL-specific events into generic [`RecordingEvent`]s, filtering to
     /// only those that involve the active player.
-    pub async fn fetch_new_events(&self) -> Result<Vec<GameEvent>> {
+    pub async fn fetch_new_events(&self) -> Result<Vec<RecordingEvent>> {
         let shaco_events = self.client.event_data(None).await?;
 
         let last_id = *self.last_event_id.read().await;
@@ -115,7 +116,7 @@ impl LeagueOfLegendsIntegration {
             .map(str::to_string)
             .unwrap_or_default();
 
-        let mut new_events: Vec<GameEvent> = Vec::new();
+        let mut new_events: Vec<RecordingEvent> = Vec::new();
 
         for event in shaco_events {
             let event_id = event.get_event_id();
@@ -141,7 +142,7 @@ impl LeagueOfLegendsIntegration {
         event: shaco::model::ingame::GameEvent,
         player_short: &str,
         kda: Option<KDA>,
-    ) -> Option<GameEvent> {
+    ) -> Option<RecordingEvent> {
         use shaco::model::ingame::Killer;
 
         match event {
@@ -171,7 +172,7 @@ impl LeagueOfLegendsIntegration {
                 };
 
                 Some(
-                    GameEvent::new(
+                    RecordingEvent::new(
                         e.event_id,
                         event_type.clone(),
                         e.event_time as f64,
@@ -197,7 +198,7 @@ impl LeagueOfLegendsIntegration {
                 }
 
                 Some(
-                    GameEvent::new(
+                    RecordingEvent::new(
                         e.event_id,
                         EventType::Objective,
                         e.event_time as f64,
@@ -209,7 +210,7 @@ impl LeagueOfLegendsIntegration {
             }
 
             shaco::model::ingame::GameEvent::BaronKill(e) => Some(
-                GameEvent::new(
+                RecordingEvent::new(
                     e.event_id,
                     EventType::Objective,
                     e.event_time as f64,
@@ -220,7 +221,7 @@ impl LeagueOfLegendsIntegration {
             ),
 
             shaco::model::ingame::GameEvent::Ace(e) => Some(
-                GameEvent::new(
+                RecordingEvent::new(
                     e.event_id,
                     EventType::Special,
                     e.event_time as f64,
@@ -230,7 +231,7 @@ impl LeagueOfLegendsIntegration {
             ),
 
             shaco::model::ingame::GameEvent::TurretKilled(e) => Some(
-                GameEvent::new(
+                RecordingEvent::new(
                     e.event_id,
                     EventType::Objective,
                     e.event_time as f64,
@@ -241,7 +242,7 @@ impl LeagueOfLegendsIntegration {
             ),
 
             shaco::model::ingame::GameEvent::InhibKilled(e) => Some(
-                GameEvent::new(
+                RecordingEvent::new(
                     e.event_id,
                     EventType::Objective,
                     e.event_time as f64,
@@ -254,7 +255,7 @@ impl LeagueOfLegendsIntegration {
             shaco::model::ingame::GameEvent::GameEnd(_e) => {
                 let outcome = match _e.result {
                     GameResult::Win => GameOutcome::Victory,
-                    GameResult::Lose => GameOutcome::Lose,
+                    GameResult::Lose => GameOutcome::Defeat,
                 };
                 self.capture_final_state(kda, outcome).await;
                 None
@@ -349,7 +350,7 @@ impl GameIntegrationTrait for LeagueOfLegendsIntegration {
         None
     }
 
-    async fn get_new_events(&self) -> Result<Option<Vec<GameEvent>>> {
+    async fn get_new_events(&self) -> Result<Option<Vec<RecordingEvent>>> {
         let events = self.fetch_new_events().await?;
         Ok(Some(events))
     }

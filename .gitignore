@@ -4,3 +4,11 @@ kaptik-core/target
 tray/target
 build
 .vs
+
+_CPack_Packages/
+dist/
+*.pfx
+tree_output.txt
+assets/kaptik_logo_transparent.ico
+build-installer-signed.ps1
+AGENTS.md

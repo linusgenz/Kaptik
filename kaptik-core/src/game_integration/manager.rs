@@ -1,6 +1,5 @@
 // game_integration/manager.rs
 
-use super::{GameEvent, GameIdentifier, GameIntegrationTrait, GameState};
 use crate::game_integration::games::league_of_legends::integration::LeagueOfLegendsIntegration;
 use crate::log;
 
@@ -8,9 +7,12 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinHandle;
+use crate::domain::events::RecordingEvent;
+use crate::domain::game::{GameIdentifier, GameState};
+use crate::game_integration::GameIntegrationTrait;
 
 type IntegrationMap = HashMap<String, Arc<RwLock<Box<dyn GameIntegrationTrait>>>>;
-type EventCallback = Arc<dyn Fn(GameEvent) + Send + Sync>;
+type EventCallback = Arc<dyn Fn(RecordingEvent) + Send + Sync>;
 
 pub struct GameIntegrationManager {
     /// Integrations keyed by lower-cased executable name (the `exe_key` of
@@ -24,7 +26,7 @@ pub struct GameIntegrationManager {
     /// Handle for the background monitoring task.
     monitor_task: Arc<Mutex<Option<JoinHandle<()>>>>,
 
-    /// Callback invoked for every new [`GameEvent`] – wired to the recorder.
+    /// Callback invoked for every new [`RecordingEvent`] – wired to the recorder.
     event_callback: Arc<RwLock<Option<EventCallback>>>,
 
     /// Most-recently seen [`GameState`] that passes [`GameState::is_meaningful`].
@@ -96,11 +98,11 @@ impl GameIntegrationManager {
         log!("🛑 Active integration deactivated");
     }
 
-    /// Wire a callback that will be invoked for every new [`GameEvent`].
+    /// Wire a callback that will be invoked for every new [`RecordingEvent`].
     /// Overwrites any previously registered callback.
     pub async fn set_event_callback<F>(&self, callback: F)
     where
-        F: Fn(GameEvent) + Send + Sync + 'static,
+        F: Fn(RecordingEvent) + Send + Sync + 'static,
     {
         *self.event_callback.write().await = Some(Arc::new(callback));
     }

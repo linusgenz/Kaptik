@@ -15,7 +15,7 @@ use crate::recorder::capture::core::tonemap::ToneMapRenderer;
 use crate::recorder::capture::core::utils;
 use crate::settings::SETTINGS;
 use crate::{log, settings};
-use crate::recording_storage::RecordingMetadata;
+use crate::domain::recording::RecordingMetadata;
 use super::frame::CapturedFrame;
 use super::{audio, encoder_task, interop};
 

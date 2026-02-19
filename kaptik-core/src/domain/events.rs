@@ -1,21 +1,24 @@
-use serde::{Deserialize, Serialize};
+// events.rs
+
 use std::collections::HashMap;
 use std::fmt;
+use serde::{Deserialize, Serialize};
+
 use crate::domain::game_stats::KDA;
 
-/// Represents a generic in-game event produced by a game integration.
+/// A generic in-game event captured during a recording session.
 ///
-/// A `GameEvent` is game-agnostic and can represent actions such as kills,
-/// objectives, or round state changes. It contains a unique identifier,
+/// `RecordingEvent` is game-agnostic and represents actions such as kills,
+/// objectives, or round-state changes. It contains a unique identifier,
 /// classification, timestamp, and structured event data.
+///
+/// confusion with `game_detection::DetectionEvent` (process started/stopped).
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GameEvent {
+pub struct RecordingEvent {
     pub event_id: u32,
-
     pub event_type: EventType,
-
+    /// Seconds elapsed since recording start.
     pub timestamp: f64,
-
     pub data: EventData,
 }
 
@@ -39,7 +42,13 @@ impl fmt::Display for EventType {
             EventType::Kill => "Kill",
             EventType::Death => "Death",
             EventType::Assist => "Assist",
-            _ => {"Unknown"},
+            EventType::Objective => "Objective",
+            EventType::Multikill => "Multikill",
+            EventType::Special => "Special",
+            EventType::RoundStart => "RoundStart",
+            EventType::RoundEnd => "RoundEnd",
+            EventType::GameEnd => "GameEnd",
+            EventType::Custom(s) => s.as_str(),
         };
         write!(f, "{}", s)
     }
@@ -48,37 +57,26 @@ impl fmt::Display for EventType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventData {
     pub name: String,
-
     pub actor: Option<String>,
-
     pub target: Option<String>,
-
     pub participants: Vec<String>,
-
     pub metadata: EventMetadata,
 }
 
-
-/// Additional contextual information attached to a [`GameEvent`].
+/// Additional contextual information attached to a [`RecordingEvent`].
 ///
-/// Designed to be extensible so integrations can store
-/// game-specific data without changing the core event structure.
+/// Designed to be extensible so integrations can store game-specific data
+/// without changing the core event structure.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct EventMetadata {
     pub kda: Option<KDA>,
-
     pub map: Option<String>,
-
     pub team: Option<String>,
-
     pub extra: HashMap<String, String>,
 }
 
-impl GameEvent {
-    /// Creates a new `GameEvent` with default empty event data.
-    ///
-    /// The event initially contains no actor, target, or metadata.
-    /// These can be added using builder-style methods.
+impl RecordingEvent {
+    /// Creates a new `RecordingEvent` with empty event data.
     pub fn new(event_id: u32, event_type: EventType, timestamp: f64, name: String) -> Self {
         Self {
             event_id,

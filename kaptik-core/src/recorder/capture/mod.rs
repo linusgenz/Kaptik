@@ -1,9 +1,8 @@
 // capture/mod.rs
 use crate::apm::{APMTracker, input_hook::InputHook};
-use crate::game_integration::{GameName, GameState, events::GameEvent};
 use crate::log;
 use crate::recording_storage::{
-    RecordingData, RecordingMetadata, get_recording_path, save_recording_data,
+    get_recording_path, save_recording_data,
 };
 use anyhow::Result;
 use parking_lot::Mutex;
@@ -12,6 +11,9 @@ use std::sync::Arc;
 use strategy::{CaptureMethod, CaptureStrategy, create_strategy};
 use tokio::sync::RwLock;
 use uuid::Uuid;
+use crate::domain::events::RecordingEvent;
+use crate::domain::game::{GameName, GameState};
+use crate::domain::recording::{RecordingData, RecordingMetadata};
 
 pub(crate) mod core;
 pub mod strategy;
@@ -170,7 +172,7 @@ impl WindowsCaptureRecorder {
     }
 
     /// Add a game event to the current recording
-    pub async fn add_event(&self, mut event: GameEvent) {
+    pub async fn add_event(&self, mut event: RecordingEvent) {
         if let Some(ref mut data) = *self.current_recording_data.write().await {
             // Set timestamp relative to recording start
             if let Some(start_time) = *self.recording_start_time.read().await {

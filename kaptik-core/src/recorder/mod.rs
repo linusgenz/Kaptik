@@ -1,6 +1,4 @@
-use chrono::Local;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 mod audio;
 pub(crate) mod capture;
@@ -11,7 +9,7 @@ use crate::game_detection;
 pub enum RecorderEvent {
     GameDetected(game_detection::GameProcess),
     GameStopped(String),
-    StartRecording(),
+    StartRecording,
     StopRecording,
 }
 

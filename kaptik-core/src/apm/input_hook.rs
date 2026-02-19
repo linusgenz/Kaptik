@@ -21,7 +21,7 @@ lazy_static::lazy_static! {
 }
 
 use windows::Win32::UI::WindowsAndMessaging::*;
-
+use crate::log;
 
 unsafe extern "system" fn keyboard_proc(n_code: i32, w_param: WPARAM, l_param: LPARAM) -> LRESULT {
     if n_code >= 0 {
@@ -103,7 +103,7 @@ impl InputHook {
                     0
                 ).expect("Failed to set mouse hook");
 
-                crate::log!("🎮 Input hooks installed (Thread ID: {})", tid);
+                log!("🎮 Input hooks installed (Thread ID: {})", tid);
 
                 let mut msg = MSG::default();
                 while GetMessageW(&mut msg, None, 0, 0).as_bool() {
@@ -120,7 +120,7 @@ impl InputHook {
                     state.thread_id = None;
                 }
 
-                crate::log!("✅ Input hooks removed");
+                log!("✅ Input hooks removed");
             }
         });
 

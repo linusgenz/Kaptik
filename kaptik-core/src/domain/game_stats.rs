@@ -17,6 +17,6 @@ impl fmt::Display for KDA {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GameOutcome {
     Victory,
-    Lose,
+    Defeat,
     Draw
 }

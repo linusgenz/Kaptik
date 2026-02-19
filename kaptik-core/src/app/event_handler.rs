@@ -7,6 +7,8 @@
 use std::sync::Arc;
 
 use tokio::sync::{mpsc, RwLock};
+use crate::domain::events::RecordingEvent;
+use crate::domain::game::{GameName, GameState};
 use crate::game_detection::GameProcess;
 use crate::game_integration::manager::GameIntegrationManager;
 use crate::log;
@@ -53,7 +55,7 @@ pub fn spawn(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Register a callback on the integration manager that forwards every
-/// [`GameEvent`] into the recorder.
+/// [`RecordingEvent`] into the recorder.
 async fn wire_event_forwarding(
     recorder: &Arc<WindowsCaptureRecorder>,
     manager: &Arc<GameIntegrationManager>,
@@ -83,7 +85,7 @@ async fn handle_event(
         RecorderEvent::GameStopped(name) => {
             on_game_stopped(name, state, recorder, manager).await;
         }
-        RecorderEvent::StartRecording() => {
+        RecorderEvent::StartRecording => {
             on_start_recording_manual(state, recorder, manager).await;
         }
         RecorderEvent::StopRecording => {
@@ -127,14 +129,14 @@ async fn on_game_detected(
     // Resolve the game name now, before the spawn, so the closure is 'static.
     let game_name = match manager.active_game_identifier().await {
         Some(id) => id.to_game_name(),
-        None => crate::game_integration::GameName::from_window_title(&game.window_title),
+        None => GameName::from_window_title(&game.window_title),
     };
 
     let rec     = recorder.clone();
     let mgr     = manager.clone();
     let window  = game.window_title.clone();
     let game_name_c = game_name;
-    let game_name_fallback = crate::game_integration::GameName::from_window_title(&game.window_title);
+    let game_name_fallback = GameName::from_window_title(&game.window_title);
     let game_name_str = game.name.clone();
     let state_c = state.clone();
 
@@ -218,7 +220,7 @@ async fn on_start_recording_manual(
 
     let game_name = match manager.active_game_identifier().await {
         Some(id) => id.to_game_name(),
-        None => crate::game_integration::GameName::from_window_title(&game.window_title),
+        None => GameName::from_window_title(&game.window_title),
     };
 
     let game_state = manager.get_current_state().await;
@@ -259,7 +261,7 @@ async fn on_stop_recording_manual(
 /// recording – prefer a live state with KDA, fall back to the cached one.
 async fn resolve_final_state(
     manager: &Arc<GameIntegrationManager>,
-) -> Option<crate::game_integration::GameState> {
+) -> Option<GameState> {
     match manager.get_current_state().await {
         Some(state) if state.kda.is_some() => Some(state),
         _ => manager.get_last_known_state().await,
@@ -273,8 +275,8 @@ async fn resolve_final_state(
 async fn start_recording_blocking(
     recorder: &Arc<WindowsCaptureRecorder>,
     window_title: &str,
-    game_name: crate::game_integration::GameName,
-    game_state: Option<crate::game_integration::GameState>,
+    game_name: GameName,
+    game_state: Option<GameState>,
 ) -> bool {
     let rec   = recorder.clone();
     let title = window_title.to_owned();
@@ -304,7 +306,7 @@ async fn start_recording_blocking(
 /// Run `recorder.stop_recording` on a blocking thread.
 async fn stop_recording_blocking(
     recorder: &Arc<WindowsCaptureRecorder>,
-    final_state: Option<crate::game_integration::GameState>,
+    final_state: Option<GameState>,
 ) {
     let rec = recorder.clone();
 

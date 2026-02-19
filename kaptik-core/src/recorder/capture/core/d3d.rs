@@ -6,6 +6,7 @@ use windows::Win32::Graphics::Direct3D11::*;
 use windows::Win32::Graphics::Dxgi::*;
 use windows::Win32::System::WinRT::Direct3D11::CreateDirect3D11DeviceFromDXGIDevice;
 use windows::core::Interface;
+use crate::log;
 
 /// Creates a Direct3D11 device and context
 pub fn create_d3d11_device() -> Result<(ID3D11Device, ID3D11DeviceContext)> {
@@ -54,7 +55,7 @@ pub fn check_hdr_enabled() -> Result<bool> {
         let output6: IDXGIOutput6 = output.cast()?;
         let desc = output6.GetDesc1()?;
 
-        crate::log!("🔍 Display ColorSpace: {:?}", desc.ColorSpace);
+        log!("🔍 Display ColorSpace: {:?}", desc.ColorSpace);
 
         let is_hdr = desc.ColorSpace == DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020 // HDR10
             || desc.ColorSpace == DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709; // scRGB
