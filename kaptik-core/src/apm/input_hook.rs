@@ -20,23 +20,22 @@ lazy_static::lazy_static! {
     static ref GLOBAL_TRACKER: Mutex<Option<Arc<Mutex<APMTracker>>>> = Mutex::new(None);
 }
 
-use windows::Win32::UI::WindowsAndMessaging::*;
 use crate::log;
 
-unsafe extern "system" fn keyboard_proc(n_code: i32, w_param: WPARAM, l_param: LPARAM) -> LRESULT {
+unsafe extern "system" fn keyboard_proc(n_code: i32, w_param: WPARAM, l_param: LPARAM) -> LRESULT { unsafe {
     if n_code >= 0 {
         let kbd = &*(l_param.0 as *const KBDLLHOOKSTRUCT);
         if w_param.0 == WM_KEYDOWN as usize || w_param.0 == WM_SYSKEYDOWN as usize {
             let vk = kbd.vkCode;
             if let Some(tracker) = &*GLOBAL_TRACKER.lock() {
-                tracker.lock().record_key(vk as u32);
+                tracker.lock().record_key(vk);
             }
         }
     }
     CallNextHookEx(None, n_code, w_param, l_param)
-}
+}}
 
-unsafe extern "system" fn mouse_proc(n_code: i32, w_param: WPARAM, l_param: LPARAM) -> LRESULT {
+unsafe extern "system" fn mouse_proc(n_code: i32, w_param: WPARAM, l_param: LPARAM) -> LRESULT { unsafe {
     if n_code >= 0 {
         let ms = &*(l_param.0 as *const MSLLHOOKSTRUCT);
         match w_param.0 as u32 {
@@ -56,7 +55,7 @@ unsafe extern "system" fn mouse_proc(n_code: i32, w_param: WPARAM, l_param: LPAR
         }
     }
     CallNextHookEx(None, n_code, w_param, l_param)
-}
+}}
 
 impl InputHook {
     pub fn new(tracker: Arc<Mutex<APMTracker>>) -> Self {
@@ -144,10 +143,6 @@ impl InputHook {
             drop(state);
             let _ = handle.join();
         }
-    }
-
-    pub fn is_running(&self) -> bool {
-        self.state.lock().thread_handle.is_some()
     }
 }
 

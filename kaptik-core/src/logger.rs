@@ -1,5 +1,3 @@
-use std::fs::OpenOptions;
-use std::io::Write;
 use std::path::PathBuf;
 
 fn log_file_path(file: &str) -> PathBuf {
@@ -12,7 +10,7 @@ fn log_file_path(file: &str) -> PathBuf {
     dir
 }
 
-pub fn write_log(file_name: &str, message: String) {
+pub fn write_log(_file_name: &str, message: String) {
     #[cfg(debug_assertions)]
     {
         println!("{}", message);
@@ -21,7 +19,7 @@ pub fn write_log(file_name: &str, message: String) {
 
     #[cfg(not(debug_assertions))]
     {
-        let path = log_file_path(file_name);
+        let path = log_file_path(_file_name);
 
         if let Ok(mut file) = OpenOptions::new()
             .create(true)

@@ -1,5 +1,4 @@
 // game_integration/mod.rs
-use serde::{Deserialize, Serialize};
 use std::any::Any;
 use crate::domain::events::RecordingEvent;
 use crate::domain::game::{GameIdentifier, GameState};
@@ -7,7 +6,7 @@ use crate::domain::game::{GameIdentifier, GameState};
 mod games;
 pub(crate) mod manager;
 
-use crate::domain::game_stats::{GameOutcome, KDA};
+use crate::domain::game_stats::KDA;
 
 /// Per-game integration contract.
 ///

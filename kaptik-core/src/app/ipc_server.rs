@@ -5,7 +5,6 @@ use tokio::net::windows::named_pipe::{NamedPipeServer, ServerOptions};
 use tokio::sync::{RwLock, mpsc};
 
 use crate::ipc;
-use crate::ipc::CommandType;
 use crate::log;
 use crate::recorder::{RecorderEvent, RecordingState};
 use crate::settings;

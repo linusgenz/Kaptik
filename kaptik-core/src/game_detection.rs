@@ -19,11 +19,11 @@ pub struct GameProcess {
 
 pub struct GameDetector {
     known_games: Arc<RwLock<HashMap<u32, GameProcess>>>,
-    callback: Option<Arc<dyn Fn(GameEvent) + Send + Sync>>,
+    callback: Option<Arc<dyn Fn(DetectionEvent) + Send + Sync>>,
 }
 
 #[derive(Debug, Clone)]
-pub enum GameEvent {
+pub enum DetectionEvent {
     GameStarted(GameProcess),
     GameStopped(String), // exe name
     GameFocused(String),
@@ -40,7 +40,7 @@ impl GameDetector {
 
     pub fn set_callback<F>(&mut self, callback: F)
     where
-        F: Fn(GameEvent) + Send + Sync + 'static,
+        F: Fn(DetectionEvent) + Send + Sync + 'static,
     {
         self.callback = Some(Arc::new(callback));
     }
@@ -63,7 +63,7 @@ impl GameDetector {
                             games.insert(process.pid, process.clone());
 
                             if let Some(ref cb) = callback {
-                                cb(GameEvent::GameStarted(process.clone()));
+                                cb(DetectionEvent::GameStarted(process.clone()));
                             }
                         }
                     }
@@ -80,7 +80,7 @@ impl GameDetector {
                     for pid in stopped_pids {
                         if let Some(game) = games.remove(&pid) {
                             if let Some(ref cb) = callback {
-                                cb(GameEvent::GameStopped(game.name.clone()));
+                                cb(DetectionEvent::GameStopped(game.name.clone()));
                             }
                         }
                     }
@@ -102,7 +102,6 @@ impl GameDetector {
         Ok(games)
     }
 
-    /// Prüft ob ein Prozess ein Game ist
     fn is_game_process(hwnd: HWND) -> Option<GameProcess> {
         unsafe {
             // Nur sichtbare Fenster
@@ -318,7 +317,7 @@ impl GameDetector {
             score += 1;
         }
 
-        if { Self::has_d3d11_or_vulkan() } {
+        if Self::has_d3d11_or_vulkan() {
             score += 1;
         }
 
@@ -345,7 +344,7 @@ impl GameDetector {
 
             let monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY);
             let mut monitor_info = MONITORINFO {
-                cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+                cbSize: size_of::<MONITORINFO>() as u32,
                 ..Default::default()
             };
 

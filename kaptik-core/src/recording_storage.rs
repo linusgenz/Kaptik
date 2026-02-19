@@ -1,5 +1,4 @@
 use rmp_serde::{decode, encode};
-use serde::{Deserialize, Serialize};
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;

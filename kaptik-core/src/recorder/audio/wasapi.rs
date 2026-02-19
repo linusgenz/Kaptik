@@ -153,7 +153,7 @@ impl WasapiCapture {
         stop_rx: std_mpsc::Receiver<()>,
         is_loopback: bool,
         device_format: WAVEFORMATEX,
-    ) -> Result<()> {
+    ) -> Result<()> { unsafe {
         CoInitializeEx(None, COINIT_MULTITHREADED).ok()?;
 
         let client: IAudioClient = device.Activate(CLSCTX_ALL, None)?;
@@ -223,7 +223,7 @@ impl WasapiCapture {
         CoUninitialize();
 
         Ok(())
-    }
+    }}
 
     fn capture_loop(
         capture_client: &IAudioCaptureClient,
@@ -292,7 +292,7 @@ impl WasapiCapture {
         buffer: *mut u8,
         frames: usize,
         input_channels: usize,
-    ) -> Vec<u8> {
+    ) -> Vec<u8> { unsafe {
         let float_buffer =
             std::slice::from_raw_parts(buffer as *const f32, frames * input_channels);
 
@@ -345,13 +345,13 @@ impl WasapiCapture {
         }
 
         output
-    }
+    }}
 
     unsafe fn convert_pcm16_to_stereo(
         buffer: *mut u8,
         frames: usize,
         input_channels: usize,
-    ) -> Vec<u8> {
+    ) -> Vec<u8> { unsafe {
         let int16_buffer =
             std::slice::from_raw_parts(buffer as *const i16, frames * input_channels);
 
@@ -400,7 +400,7 @@ impl WasapiCapture {
         }
 
         output
-    }
+    }}
 
     pub fn stop(&mut self) -> Result<()> {
         if let Some(tx) = self.stop_tx.take() {

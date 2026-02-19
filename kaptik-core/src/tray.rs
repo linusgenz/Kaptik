@@ -1,5 +1,4 @@
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use tao::event_loop::{ControlFlow, EventLoop};
 use tray_icon::{

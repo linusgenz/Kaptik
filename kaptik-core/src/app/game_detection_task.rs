@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use tokio::sync::mpsc;
 
-use crate::game_detection::{GameDetector, GameEvent};
+use crate::game_detection::{DetectionEvent, GameDetector};
 use crate::game_integration::manager::GameIntegrationManager;
 use crate::log;
 use crate::recorder::RecorderEvent;
@@ -20,7 +20,7 @@ pub fn spawn(
         let integration_mgr = integration_manager.clone();
 
         detector.set_callback(move |event| match &event {
-            GameEvent::GameStarted(game) => {
+            DetectionEvent::GameStarted(game) => {
                 log!(
                     "🎮 Game detected: {} (PID: {}) - {}",
                     game.name,
@@ -36,7 +36,7 @@ pub fn spawn(
 
                 let _ = game_event_tx.send(RecorderEvent::GameDetected(game.clone()));
             }
-            GameEvent::GameStopped(name) => {
+            DetectionEvent::GameStopped(name) => {
                 log!("🛑 Game closed: {}", name);
                 let mgr = integration_mgr.clone();
                 tokio::spawn(async move {
@@ -44,10 +44,10 @@ pub fn spawn(
                 });
                 let _ = game_event_tx.send(RecorderEvent::GameStopped(name.clone()));
             }
-            GameEvent::GameFocused(name) => {
+            DetectionEvent::GameFocused(name) => {
                 log!("👁️ Game focused: {}", name);
             }
-            GameEvent::GameUnfocused(name) => {
+            DetectionEvent::GameUnfocused(name) => {
                 log!("💤 Game in the background: {}", name);
             }
         });

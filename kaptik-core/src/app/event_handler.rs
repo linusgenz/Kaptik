@@ -7,7 +7,6 @@
 use std::sync::Arc;
 
 use tokio::sync::{mpsc, RwLock};
-use crate::domain::events::RecordingEvent;
 use crate::domain::game::{GameName, GameState};
 use crate::game_detection::GameProcess;
 use crate::game_integration::manager::GameIntegrationManager;

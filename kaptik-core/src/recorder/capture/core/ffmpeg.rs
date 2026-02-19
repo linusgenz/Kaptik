@@ -90,12 +90,9 @@ pub struct FfmpegEncoder {
     temp_video_path: PathBuf,
     temp_audio_path: Option<PathBuf>,
     output_path: PathBuf,
-    game_audio_format: Option<WAVEFORMATEX>,
-    microphone_format: Option<WAVEFORMATEX>,
 
     fps: u32,
     frame_count: u64,
-    last_log_time: std::time::Instant,
     recording_start: std::time::Instant,
 
     recording_uuid: Uuid,
@@ -191,11 +188,8 @@ impl FfmpegEncoder {
             temp_video_path,
             temp_audio_path,
             output_path: output_path.clone(),
-            game_audio_format,
-            microphone_format,
             fps,
             frame_count: 0,
-            last_log_time: std::time::Instant::now(),
             recording_start: std::time::Instant::now(),
             recording_uuid,
         })
@@ -301,7 +295,7 @@ impl FfmpegEncoder {
                         self.frame_count += 1;
                         if self.frame_count % 60 == 0 {
                             log!(
-                                "⚠️ Video buffer voll! Frame #{} übersprungen",
+                                "⚠️ Video buffer full! Skipped frame #{} ",
                                 self.frame_count
                             );
                         }
