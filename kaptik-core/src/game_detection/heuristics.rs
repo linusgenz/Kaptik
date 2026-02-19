@@ -9,9 +9,7 @@ use windows::Win32::Graphics::Gdi::{
 };
 use windows::Win32::UI::WindowsAndMessaging::GetWindowRect;
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Exclusion lists
-// ─────────────────────────────────────────────────────────────────────────────
 
 const EXCLUDED_EXES: &[&str] = &[
     "rustrover64.exe", "code.exe", "devenv.exe", "rider64.exe", "qtcreator.exe",
@@ -58,9 +56,7 @@ const ENGINE_INDICATORS: &[&str] = &["unreal", "unity", "cryengine", "frostbite"
 
 const SYSTEM_TITLE_PATTERNS: &[&str] = &["windows", "microsoft", "nvidia", "amd", "intel"];
 
-// ─────────────────────────────────────────────────────────────────────────────
 // Public API
-// ─────────────────────────────────────────────────────────────────────────────
 
 /// Returns `true` when the window / process combination looks like a game.
 ///

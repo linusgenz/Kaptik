@@ -6,12 +6,12 @@ use tokio::sync::{RwLock, mpsc};
 
 use crate::ipc;
 use crate::log;
-use crate::recorder::{RecorderEvent, RecordingState};
+use crate::recorder::{GameTracker, RecorderEvent};
 use crate::settings;
 
 pub fn spawn(
     event_tx: mpsc::UnboundedSender<RecorderEvent>,
-    state: Arc<RwLock<RecordingState>>,
+    state: Arc<RwLock<GameTracker>>,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         log!("🔌 IPC server thread started");
@@ -24,7 +24,7 @@ pub fn spawn(
 
 async fn run_ipc_server(
     event_tx: mpsc::UnboundedSender<RecorderEvent>,
-    _state: Arc<RwLock<RecordingState>>,
+    _state: Arc<RwLock<GameTracker>>,
 ) -> anyhow::Result<()> {
     let mut first_instance = true;
 

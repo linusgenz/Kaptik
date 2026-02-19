@@ -2,19 +2,30 @@
 mod audio;
 pub(crate) mod capture;
 
-use crate::game_detection;
+use crate::game_detection::GameProcess;
 
 #[derive(Debug, Clone)]
 pub enum RecorderEvent {
-    GameDetected(game_detection::GameProcess),
+    GameDetected(GameProcess),
     GameStopped(String),
     StartRecording,
     StopRecording,
 }
 
 #[derive(Debug, Default)]
-pub struct RecordingState {
-    pub(crate) is_recording: bool,
+pub struct GameTracker {
+    /// The executable name of the game currently being recorded, if any.
     pub(crate) current_game: Option<String>,
-    pub(crate) active_games: Vec<game_detection::GameProcess>,
+    /// All game processes that are currently detected as running.
+    pub(crate) active_games: Vec<GameProcess>,
+}
+
+impl GameTracker {
+    pub fn has_active_games(&self) -> bool {
+        !self.active_games.is_empty()
+    }
+
+    pub fn first_active_game(&self) -> Option<&GameProcess> {
+        self.active_games.first()
+    }
 }

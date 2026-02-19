@@ -10,6 +10,7 @@ use tokio::task::JoinHandle;
 use crate::domain::events::RecordingEvent;
 use crate::domain::game::{GameIdentifier, GameState};
 use crate::game_integration::GameIntegrationTrait;
+use crate::game_integration::games::valorant::ValorantIntegration;
 
 type IntegrationMap = HashMap<String, Arc<RwLock<Box<dyn GameIntegrationTrait>>>>;
 type EventCallback = Arc<dyn Fn(RecordingEvent) + Send + Sync>;
@@ -48,6 +49,15 @@ impl GameIntegrationManager {
 
         // Built-in integrations registered here.
         manager.register("League of Legends.exe", LeagueOfLegendsIntegration::new());
+
+        match ValorantIntegration::new() {
+            Ok(integration) => {
+                manager.register("VALORANT-Win64-Shipping.exe", integration);
+            }
+            Err(e) => {
+                log!("⚠️  ValorantIntegration init failed, skipping: {}", e);
+            }
+        }
 
         manager
     }

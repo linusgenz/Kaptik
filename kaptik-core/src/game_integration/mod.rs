@@ -44,11 +44,6 @@ pub trait GameIntegrationTrait: Send + Sync {
         GameIdentifier::new(exe_name, self.get_game_name())
     }
 
-    /// Synchronous KDA accessor – may return `None` if the value is only
-    /// available asynchronously (the async path via [`get_game_state`] is then
-    /// preferred).
-    fn get_kda(&self) -> Option<KDA>;
-
     /// Drain any new in-game events since the last call.  Returns `Ok(None)`
     /// when the integration does not support event streaming.
     async fn get_new_events(&self) -> anyhow::Result<Option<Vec<RecordingEvent>>> {

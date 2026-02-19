@@ -1,7 +1,7 @@
 // event_handler.rs
 //! Bridges the recorder event bus with the game integration manager.
 //!
-//! All mutations to [`RecordingState`] happen here; both the recorder and the
+//! All mutations to [`GameTracker`] happen here; both the recorder and the
 //! integration manager are treated as pure-async services.
 
 use std::sync::Arc;
@@ -12,33 +12,28 @@ use crate::game_detection::GameProcess;
 use crate::game_integration::manager::GameIntegrationManager;
 use crate::log;
 use crate::recorder::capture::WindowsCaptureRecorder;
-use crate::recorder::{RecorderEvent, RecordingState};
+use crate::recorder::{GameTracker, RecorderEvent};
 use crate::settings;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Public API
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Spawn the event-handler task and return its [`JoinHandle`].
-///
-/// The task owns the receive half of the recorder-event channel and drives all
-/// recording lifecycle transitions.
 pub fn spawn(
     mut event_rx: mpsc::UnboundedReceiver<RecorderEvent>,
-    recording_state: Arc<RwLock<RecordingState>>,
+    game_tracker: Arc<RwLock<GameTracker>>,
     recorder: Arc<WindowsCaptureRecorder>,
     integration_manager: Arc<GameIntegrationManager>,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         log!("📋 Event handler started");
 
-        // Wire game events → recorder before processing any recorder events.
         wire_event_forwarding(&recorder, &integration_manager).await;
 
         while let Some(event) = event_rx.recv().await {
             handle_event(
                 event,
-                &recording_state,
+                &game_tracker,
                 &recorder,
                 &integration_manager,
             )
@@ -53,8 +48,6 @@ pub fn spawn(
 // Setup
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Register a callback on the integration manager that forwards every
-/// [`RecordingEvent`] into the recorder.
 async fn wire_event_forwarding(
     recorder: &Arc<WindowsCaptureRecorder>,
     manager: &Arc<GameIntegrationManager>,
@@ -73,22 +66,22 @@ async fn wire_event_forwarding(
 
 async fn handle_event(
     event: RecorderEvent,
-    state: &Arc<RwLock<RecordingState>>,
+    tracker: &Arc<RwLock<GameTracker>>,
     recorder: &Arc<WindowsCaptureRecorder>,
     manager: &Arc<GameIntegrationManager>,
 ) {
     match event {
         RecorderEvent::GameDetected(game) => {
-            on_game_detected(game, state, recorder, manager).await;
+            on_game_detected(game, tracker, recorder, manager).await;
         }
         RecorderEvent::GameStopped(name) => {
-            on_game_stopped(name, state, recorder, manager).await;
+            on_game_stopped(name, tracker, recorder, manager).await;
         }
         RecorderEvent::StartRecording => {
-            on_start_recording_manual(state, recorder, manager).await;
+            on_start_recording_manual(tracker, recorder, manager).await;
         }
         RecorderEvent::StopRecording => {
-            on_stop_recording_manual(state, recorder, manager).await;
+            on_stop_recording_manual(recorder, manager).await;
         }
     }
 }
@@ -99,89 +92,82 @@ async fn handle_event(
 
 async fn on_game_detected(
     game: GameProcess,
-    state: &Arc<RwLock<RecordingState>>,
+    tracker: &Arc<RwLock<GameTracker>>,
     recorder: &Arc<WindowsCaptureRecorder>,
     manager: &Arc<GameIntegrationManager>,
 ) {
-    {
-        let mut s = state.write().await;
-        s.active_games.push(game.clone());
-    }
+    tracker.write().await.active_games.push(game.clone());
 
     let auto_record = settings::get_setting(|s| s.auto_record).await;
-    let already_recording = state.read().await.is_recording;
 
-    if !auto_record || already_recording {
+    // Recorder is the single source of truth for recording state.
+    if !auto_record || recorder.is_recording().await {
         return;
     }
 
     log!("🔍 Auto-record: waiting for round to start…");
 
-    // Mark recording intent immediately so a second GameDetected doesn't
-    // race us into a double-start.
-    {
-        let mut s = state.write().await;
-        s.is_recording = true;
-        s.current_game = Some(game.name.clone());
-    }
-
-    // Resolve the game name now, before the spawn, so the closure is 'static.
+    // Optimistically claim the game name now so the spawned task is 'static.
     let game_name = match manager.active_game_identifier().await {
         Some(id) => id.to_game_name(),
         None => GameName::from_window_title(&game.window_title),
     };
+    let game_name_fallback = GameName::from_window_title(&game.window_title);
+    let game_name_str = game.name.clone();
+    let window = game.window_title.clone();
 
     let rec     = recorder.clone();
     let mgr     = manager.clone();
-    let window  = game.window_title.clone();
-    let game_name_c = game_name;
-    let game_name_fallback = GameName::from_window_title(&game.window_title);
-    let game_name_str = game.name.clone();
-    let state_c = state.clone();
+    let tracker_c = tracker.clone();
 
     tokio::spawn(async move {
         const MAX_WAIT_SECS: u32 = 30;
-
-        for attempt in 1..=MAX_WAIT_SECS {
+        loop {
+       // for attempt in 1..=MAX_WAIT_SECS {
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
+            // Another recording may have started in the meantime (e.g. manual).
+            if rec.is_recording().await {
+                log!("↩️  Auto-record cancelled – recording already active");
+                return;
+            }
+
             if mgr.is_in_round().await {
-                log!("🟢 Round detected after {}s – starting recording", attempt);
+                log!("🟢 Round detected – starting recording");//, attempt);
                 let game_state = mgr.get_current_state().await;
-                start_recording_blocking(&rec, &window, game_name_c, game_state).await;
+                let started = start_recording_blocking(&rec, &window, game_name, game_state).await;
+                if started {
+                    tracker_c.write().await.current_game = Some(game_name_str);
+                }
                 return;
             }
         }
 
-        log!(
+     /*   log!(
             "⚠️  No round detected after {}s – starting recording anyway",
             MAX_WAIT_SECS
         );
-        start_recording_blocking(&rec, &window, game_name_fallback, None).await;
-
-        // If recording failed, roll back the intent flag.
-        if !rec.is_recording().await {
-            let mut s = state_c.write().await;
-            s.is_recording = false;
-            s.current_game = None;
-            log!("↩️  Recording intent rolled back for '{}'", game_name_str);
-        }
+        let started = start_recording_blocking(&rec, &window, game_name_fallback, None).await;
+        if started {
+            tracker_c.write().await.current_game = Some(game_name_str);
+        }*/
     });
 }
 
 async fn on_game_stopped(
     name: String,
-    state: &Arc<RwLock<RecordingState>>,
+    tracker: &Arc<RwLock<GameTracker>>,
     recorder: &Arc<WindowsCaptureRecorder>,
     manager: &Arc<GameIntegrationManager>,
 ) {
-    let was_recording = {
-        let mut s = state.write().await;
-        s.active_games.retain(|g| g.name != name);
-        s.is_recording && s.current_game.as_deref() == Some(&name)
+    let was_recording_this_game = {
+        let mut t = tracker.write().await;
+        t.active_games.retain(|g| g.name != name);
+        // Only stop if we were recording exactly this game.
+        recorder.is_recording().await && t.current_game.as_deref() == Some(&name)
     };
 
-    if !was_recording {
+    if !was_recording_this_game {
         return;
     }
 
@@ -190,27 +176,22 @@ async fn on_game_stopped(
     let final_state = resolve_final_state(manager).await;
     stop_recording_blocking(recorder, final_state).await;
 
-    let mut s = state.write().await;
-    s.is_recording = false;
-    s.current_game = None;
+    tracker.write().await.current_game = None;
 }
 
 async fn on_start_recording_manual(
-    state: &Arc<RwLock<RecordingState>>,
+    tracker: &Arc<RwLock<GameTracker>>,
     recorder: &Arc<WindowsCaptureRecorder>,
     manager: &Arc<GameIntegrationManager>,
 ) {
     log!("▶️  Manual start recording");
 
-    let (already, maybe_game) = {
-        let s = state.read().await;
-        (s.is_recording, s.active_games.first().cloned())
-    };
-
-    if already {
+    if recorder.is_recording().await {
         log!("⚠️  Already recording – ignoring manual start");
         return;
     }
+
+    let maybe_game = tracker.read().await.first_active_game().cloned();
 
     let Some(game) = maybe_game else {
         log!("⚠️  No active game detected – cannot start recording");
@@ -223,33 +204,26 @@ async fn on_start_recording_manual(
     };
 
     let game_state = manager.get_current_state().await;
-    let result = start_recording_blocking(recorder, &game.window_title, game_name, game_state).await;
+    let started = start_recording_blocking(recorder, &game.window_title, game_name, game_state).await;
 
-    if result {
-        let mut s = state.write().await;
-        s.is_recording = true;
-        s.current_game = Some(game.name);
+    if started {
+        tracker.write().await.current_game = Some(game.name);
     }
 }
 
 async fn on_stop_recording_manual(
-    state: &Arc<RwLock<RecordingState>>,
     recorder: &Arc<WindowsCaptureRecorder>,
     manager: &Arc<GameIntegrationManager>,
 ) {
     log!("⏹️  Manual stop recording");
 
-    if !state.read().await.is_recording {
+    if !recorder.is_recording().await {
         log!("⚠️  No active recording – ignoring manual stop");
         return;
     }
 
     let final_state = resolve_final_state(manager).await;
     stop_recording_blocking(recorder, final_state).await;
-
-    let mut s = state.write().await;
-    s.is_recording = false;
-    s.current_game = None;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

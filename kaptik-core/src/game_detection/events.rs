@@ -3,9 +3,6 @@
 use super::process::GameProcess;
 
 /// Events emitted by [`super::GameDetector`] when process state changes.
-///
-/// Named `DetectionEvent` (not `GameEvent`) to avoid confusion with
-/// `domain::events::RecordingEvent` which represents in-game actions.
 #[derive(Debug, Clone)]
 pub enum DetectionEvent {
     /// A new game process matching the heuristics was found.

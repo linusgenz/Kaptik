@@ -11,8 +11,6 @@ use crate::domain::game_stats::KDA;
 /// `RecordingEvent` is game-agnostic and represents actions such as kills,
 /// objectives, or round-state changes. It contains a unique identifier,
 /// classification, timestamp, and structured event data.
-///
-/// confusion with `game_detection::DetectionEvent` (process started/stopped).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecordingEvent {
     pub event_id: u32,

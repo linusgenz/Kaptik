@@ -1,16 +1,6 @@
 #![windows_subsystem = "windows"]
 
-mod app;
-mod game_detection;
-mod game_integration;
-mod ipc;
-mod logger;
-mod recorder;
-mod settings;
-mod tray;
-mod apm;
-mod recording_storage;
-mod domain;
+use kaptik_core::app;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

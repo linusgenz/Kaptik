@@ -346,10 +346,6 @@ impl GameIntegrationTrait for LeagueOfLegendsIntegration {
         "League of Legends"
     }
 
-    fn get_kda(&self) -> Option<KDA> {
-        None
-    }
-
     async fn get_new_events(&self) -> Result<Option<Vec<RecordingEvent>>> {
         let events = self.fetch_new_events().await?;
         Ok(Some(events))
