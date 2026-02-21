@@ -1,9 +1,4 @@
-// models.rs
-
-// models.rs – Valorant local & remote API response types.
-//
-// All field names follow the casing used by the Valorant API, using
-// `#[serde(rename = "...")]` so our Rust types can stay idiomatic.
+// models.rs – Valorant API response types.
 
 use serde::Deserialize;
 
@@ -14,142 +9,124 @@ use serde::Deserialize;
 pub struct EntitlementsTokenResponse {
     #[serde(rename = "accessToken")]
     pub access_token: String,
-    /// The entitlement JWT – passed as `X-Riot-Entitlements-JWT` on remote calls.
     #[serde(rename = "token")]
     pub entitlement_token: String,
-    /// The player's PUUID.
     #[serde(rename = "subject")]
     pub subject: String,
 }
 
-/// Response from GET /chat/v4/presences
-#[derive(Debug, Clone, Deserialize)]
-pub struct PresencesResponse {
-    pub presences: Vec<Presence>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct Presence {
-    /// Player UUID – use this to find the local player's own entry.
-    pub puuid: String,
-    /// Product identifier; use `"valorant"` to filter out other Riot products.
-    pub product: String,
-    /// Base-64-encoded JSON with in-game state (see [`PresencePrivate`]).
-    pub private: Option<String>,
-}
-
-/// Decoded content of [`Presence::private`].
-///
-/// The Valorant client encodes this object as base64 JSON and stores it in
-/// the presence payload so other clients can display rich status info.
-/// All fields are optional because the schema can vary between game states.
-#[derive(Debug, Clone, Deserialize, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct PresencePrivate {
-    pub is_valid: Option<bool>,
-    /// `"MENUS"` | `"PREGAME"` | `"INGAME"`
-    pub session_loop_state: Option<String>,
-    /// Current team's score (can be stringified integer on some client versions).
-    pub party_owner_match_score_ally_team: Option<serde_json::Value>,
-    /// Opponent's score (can be stringified integer).
-    pub party_owner_match_score_enemy_team: Option<serde_json::Value>,
-    /// `"Blue"` or `"Red"` – the current player's side.
-    pub party_owner_match_current_team: Option<String>,
-    /// Map path, e.g. `"/Game/Maps/Ascent/Ascent"`.
-    pub match_map: Option<String>,
-    /// Queue identifier, e.g. `"competitive"`, `"unrated"`, `"spikerush"`.
-    pub queue_id: Option<String>,
-    /// Game pod ID (server region/datacenter info).
-    pub game_pod_id: Option<String>,
-}
-
-impl PresencePrivate {
-    fn parse_score(v: &Option<serde_json::Value>) -> u32 {
-        match v {
-            Some(serde_json::Value::Number(n)) => n.as_u64().unwrap_or(0) as u32,
-            Some(serde_json::Value::String(s)) => s.parse().unwrap_or(0),
-            _ => 0,
-        }
-    }
-
-    pub fn ally_score(&self) -> u32 {
-        Self::parse_score(&self.party_owner_match_score_ally_team)
-    }
-
-    pub fn enemy_score(&self) -> u32 {
-        Self::parse_score(&self.party_owner_match_score_enemy_team)
-    }
-
-    /// Total rounds played so far (ally + enemy won rounds).
-    pub fn total_rounds(&self) -> u32 {
-        self.ally_score() + self.enemy_score()
-    }
-
-    pub fn is_in_game(&self) -> bool {
-        self.session_loop_state.as_deref() == Some("INGAME")
-    }
-
-    pub fn is_in_pregame(&self) -> bool {
-        self.session_loop_state.as_deref() == Some("PREGAME")
-    }
-}
-
-// ─── GLZ (Current-Game) API ───────────────────────────────────────────────────
+// ─── GLZ (Core-Game) API ─────────────────────────────────────────────────────
 
 /// Response from GET /core-game/v1/players/{puuid}
-/// Used to retrieve the current match ID while a game is in progress.
 #[derive(Debug, Clone, Deserialize)]
-pub struct CoreGamePlayerResponse {
-    #[serde(rename = "MatchID")]
-    pub match_id: String,
-    /// `"Blue"` or `"Red"`.
-    #[serde(rename = "TeamID")]
-    pub team_id: String,
+pub struct CurrentGamePlayerResponse {
     #[serde(rename = "Subject")]
     pub subject: String,
+    #[serde(rename = "MatchID")]
+    pub match_id: String,
+    #[serde(rename = "Version")]
+    pub version: u64,
 }
 
 /// Response from GET /core-game/v1/matches/{matchId}
 #[derive(Debug, Clone, Deserialize)]
-pub struct CoreGameMatchResponse {
+pub struct CurrentGameMatchResponse {
     #[serde(rename = "MatchID")]
     pub match_id: String,
-    /// `"IN_PROGRESS"` while the game is live.
     #[serde(rename = "State")]
     pub state: String,
-    /// Full map asset path, e.g. `"/Game/Maps/Ascent/Ascent"`.
     #[serde(rename = "MapID")]
     pub map_id: String,
-    /// Full mode asset path.
     #[serde(rename = "ModeID")]
     pub mode_id: String,
     #[serde(rename = "ProvisioningFlow")]
     pub provisioning_flow: String,
+    #[serde(rename = "GamePodID")]
+    pub game_pod_id: String,
+    #[serde(rename = "AllMUCName")]
+    pub all_muc_name: String,
+    #[serde(rename = "TeamMUCName")]
+    pub team_muc_name: String,
+    #[serde(rename = "TeamVoiceID")]
+    pub team_voice_id: String,
+    #[serde(rename = "TeamMatchToken")]
+    pub team_match_token: String,
+    #[serde(rename = "IsReconnectable")]
+    pub is_reconnectable: bool,
+    #[serde(rename = "ConnectionDetails")]
+    pub connection_details: ConnectionDetails,
+    #[serde(rename = "PostGameDetails")]
+    pub post_game_details: Option<serde_json::Value>,
     #[serde(rename = "Players")]
-    pub players: Vec<CoreGameMatchPlayer>,
+    pub players: Vec<Player>,
+    #[serde(rename = "MatchmakingData")]
+    pub matchmaking_data: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct CoreGameMatchPlayer {
+pub struct ConnectionDetails {
+    #[serde(rename = "GameServerHosts")]
+    pub game_server_hosts: Vec<String>,
+    #[serde(rename = "GameServerHost")]
+    pub game_server_host: String,
+    #[serde(rename = "GameServerPort")]
+    pub game_server_port: u64,
+    #[serde(rename = "GameServerObfuscatedIP")]
+    pub game_server_obfuscated_ip: u64,
+    #[serde(rename = "GameClientHash")]
+    pub game_client_hash: u64,
+    #[serde(rename = "PlayerKey")]
+    pub player_key: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Player {
     #[serde(rename = "Subject")]
     pub subject: String,
     #[serde(rename = "TeamID")]
     pub team_id: String,
-    /// Agent UUID – convert with [`super::maps::agent_id_to_name`].
     #[serde(rename = "CharacterID")]
-    pub character_id: Option<String>,
+    pub character_id: String,
     #[serde(rename = "PlayerIdentity")]
-    pub player_identity: Option<CoreGamePlayerIdentity>,
+    pub player_identity: PlayerIdentity,
+    #[serde(rename = "SeasonalBadgeInfo")]
+    pub seasonal_badge_info: SeasonalBadgeInfo,
+    #[serde(rename = "IsCoach")]
+    pub is_coach: bool,
+    #[serde(rename = "IsAssociated")]
+    pub is_associated: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct CoreGamePlayerIdentity {
+pub struct PlayerIdentity {
     #[serde(rename = "Subject")]
     pub subject: String,
-    #[serde(rename = "GameName")]
-    pub game_name: Option<String>,
-    #[serde(rename = "TagLine")]
-    pub tag_line: Option<String>,
+    #[serde(rename = "PlayerCardID")]
+    pub player_card_id: String,
+    #[serde(rename = "PlayerTitleID")]
+    pub player_title_id: String,
+    #[serde(rename = "AccountLevel")]
+    pub account_level: u64,
+    #[serde(rename = "PreferredLevelBorderID")]
+    pub preferred_level_border_id: String,
+    #[serde(rename = "Incognito")]
+    pub incognito: bool,
+    #[serde(rename = "HideAccountLevel")]
+    pub hide_account_level: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SeasonalBadgeInfo {
+    #[serde(rename = "SeasonID")]
+    pub season_id: String,
+    #[serde(rename = "NumberOfWins")]
+    pub number_of_wins: u64,
+    #[serde(rename = "WinsByTier")]
+    pub wins_by_tier: Option<serde_json::Value>,
+    #[serde(rename = "Rank")]
+    pub rank: u64,
+    #[serde(rename = "LeaderboardRank")]
+    pub leaderboard_rank: u64,
 }
 
 // ─── PD (Player Data) API ─────────────────────────────────────────────────────
@@ -180,9 +157,6 @@ pub struct MatchHistoryItem {
 }
 
 /// Response from GET /match-details/v1/matches/{matchId}
-///
-/// Only the fields we actually use are modelled; the real response is much
-/// larger.
 #[derive(Debug, Clone, Deserialize)]
 pub struct MatchDetailsResponse {
     #[serde(rename = "matchInfo")]
@@ -191,7 +165,6 @@ pub struct MatchDetailsResponse {
     pub players: Vec<MatchPlayer>,
     #[serde(rename = "teams")]
     pub teams: Vec<MatchTeam>,
-    /// Per-round breakdown; present only on completed matches.
     #[serde(rename = "roundResults")]
     pub round_results: Option<Vec<RoundResult>>,
 }
@@ -222,7 +195,6 @@ pub struct MatchPlayer {
     pub tag_line: String,
     #[serde(rename = "teamId")]
     pub team_id: String,
-    /// Agent UUID.
     #[serde(rename = "characterId")]
     pub character_id: String,
     #[serde(rename = "stats")]
@@ -250,7 +222,6 @@ pub struct MatchTeam {
     pub rounds_won: u32,
 }
 
-/// Per-round data within a completed match.
 #[derive(Debug, Clone, Deserialize)]
 pub struct RoundResult {
     #[serde(rename = "roundNum")]
@@ -272,10 +243,8 @@ pub struct RoundPlayerStats {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct KillEvent {
-    /// Milliseconds since game start.
     #[serde(rename = "timeSinceGameStartMillis")]
     pub game_time: Option<u64>,
-    /// Milliseconds since round start.
     #[serde(rename = "timeSinceRoundStartMillis")]
     pub round_time: Option<u64>,
     pub killer: String,
