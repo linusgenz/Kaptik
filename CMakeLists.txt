@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(KaptikSuite VERSION 0.2 LANGUAGES CXX)
+project(KaptikSuite VERSION 0.3 LANGUAGES CXX)
 
 add_subdirectory(app)
 

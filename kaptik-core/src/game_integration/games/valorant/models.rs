@@ -167,6 +167,8 @@ pub struct MatchDetailsResponse {
     pub teams: Vec<MatchTeam>,
     #[serde(rename = "roundResults")]
     pub round_results: Option<Vec<RoundResult>>,
+    #[serde(rename = "kills")]
+    pub kills: Option<Vec<MatchKillEvent>>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -175,6 +177,10 @@ pub struct MatchInfo {
     pub match_id: String,
     #[serde(rename = "mapId")]
     pub map_id: String,
+    #[serde(rename = "gameLengthMillis")]
+    pub game_length_millis: Option<u64>,
+    #[serde(rename = "gameStartMillis")]
+    pub game_start_millis: Option<u64>,
     #[serde(rename = "queueID")]
     pub queue_id: String,
     #[serde(rename = "gameMode")]
@@ -220,18 +226,24 @@ pub struct MatchTeam {
     pub rounds_played: u32,
     #[serde(rename = "roundsWon")]
     pub rounds_won: u32,
+    #[serde(rename = "numPoints")]
+    pub num_points: Option<u32>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct RoundResult {
     #[serde(rename = "roundNum")]
     pub round_num: u32,
+    #[serde(rename = "roundResult")]
+    pub round_result: String,
+    #[serde(rename = "roundCeremony")]
+    pub round_ceremony: Option<String>,
     #[serde(rename = "winningTeam")]
     pub winning_team: String,
-    #[serde(rename = "roundResultCode")]
-    pub round_result_code: String,
     #[serde(rename = "playerStats")]
     pub player_stats: Vec<RoundPlayerStats>,
+    #[serde(rename = "playerScores")]
+    pub player_scores: Option<Vec<RoundPlayerScore>>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -242,12 +254,48 @@ pub struct RoundPlayerStats {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct RoundPlayerScore {
+    pub subject: String,
+    pub score: u32,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct KillEvent {
-    #[serde(rename = "timeSinceGameStartMillis")]
+    /// Milliseconds since game start
+    #[serde(rename = "gameTime")]
     pub game_time: Option<u64>,
-    #[serde(rename = "timeSinceRoundStartMillis")]
+    /// Milliseconds since round start
+    #[serde(rename = "roundTime")]
     pub round_time: Option<u64>,
     pub killer: String,
     pub victim: String,
     pub assistants: Vec<String>,
+    #[serde(rename = "finishingDamage")]
+    pub finishing_damage: Option<FinishingDamage>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct MatchKillEvent {
+    /// Milliseconds since game start
+    #[serde(rename = "gameTime")]
+    pub game_time: u64,
+    /// Milliseconds since round start
+    #[serde(rename = "roundTime")]
+    pub round_time: u64,
+    pub round: u32,
+    pub killer: String,
+    pub victim: String,
+    pub assistants: Vec<String>,
+    #[serde(rename = "finishingDamage")]
+    pub finishing_damage: Option<FinishingDamage>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct FinishingDamage {
+    #[serde(rename = "damageType")]
+    pub damage_type: String,
+    #[serde(rename = "damageItem")]
+    pub damage_item: String,
+    #[serde(rename = "isSecondaryFireMode")]
+    pub is_secondary_fire_mode: bool,
 }

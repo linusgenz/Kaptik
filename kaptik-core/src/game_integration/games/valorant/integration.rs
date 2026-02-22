@@ -19,9 +19,10 @@ use crate::game_integration::GameIntegrationTrait;
 use crate::log;
 
 use super::client::{ClientSession, ValorantClient};
-use super::maps::{queue_id_to_mode};
+use super::maps::queue_id_to_mode;
 use super::models::MatchDetailsResponse;
 use crate::game_integration::games::valorant::agent_lookup::agent_id_to_name;
+use crate::game_integration::games::valorant::map_lookup::map_id_to_name;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // File Logger
@@ -30,7 +31,6 @@ use crate::game_integration::games::valorant::agent_lookup::agent_id_to_name;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::PathBuf;
-use crate::game_integration::games::valorant::map_lookup::map_id_to_name;
 
 fn log_file_path() -> PathBuf {
     std::env::current_dir()
@@ -50,6 +50,10 @@ fn flog(msg: &str) {
 macro_rules! flog {
     ($($arg:tt)*) => { flog(&format!($($arg)*)); };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Default)]
 struct InnerState {
@@ -154,7 +158,6 @@ impl ValorantIntegration {
         }
     }
 
-    // ─── Transition handlers ──────────────────────────────────────────────────
 
     async fn on_entered_ingame(&self, session: &ClientSession, match_id: &str) {
         match self.client.get_current_game_match(session, match_id).await {
@@ -187,30 +190,11 @@ impl ValorantIntegration {
             }
         }
 
-        self.on_round_started(1, 0, 0).await;
+        // Emit RoundStart for round 1 immediately when the game begins
+        self.emit_round_start(1, 0, 0, 0.0).await;
     }
 
-    async fn on_round_started(&self, round_number: u32, ally: u32, enemy: u32) {
-        let map = self.state.read().await.current_map.clone();
-        let mut s = self.state.write().await;
-        let id = s.next_id();
-        let mut extra = std::collections::HashMap::new();
-        extra.insert("round".to_string(), round_number.to_string());
-        extra.insert("ally_score".to_string(), ally.to_string());
-        extra.insert("enemy_score".to_string(), enemy.to_string());
-        s.pending_events.push(RecordingEvent {
-            event_id: id,
-            event_type: EventType::RoundStart,
-            timestamp: 0.0,
-            data: EventData {
-                name: format!("Round {}", round_number),
-                actor: None,
-                target: None,
-                participants: vec![],
-                metadata: EventMetadata { map, extra, ..Default::default() },
-            },
-        });
-    }
+    // ─── Transition: game ended ───────────────────────────────────────────────
 
     async fn on_game_ended(&self, session: &ClientSession) {
         {
@@ -248,16 +232,47 @@ impl ValorantIntegration {
         }
     }
 
+    // ─── Emit helpers ─────────────────────────────────────────────────────────
+
+    async fn emit_round_start(&self, round_number: u32, ally_score: u32, enemy_score: u32, timestamp_secs: f64) {
+        let map = self.state.read().await.current_map.clone();
+        let mut s = self.state.write().await;
+        let id = s.next_id();
+        let mut extra = std::collections::HashMap::new();
+        extra.insert("round".to_string(), round_number.to_string());
+        extra.insert("ally_score".to_string(), ally_score.to_string());
+        extra.insert("enemy_score".to_string(), enemy_score.to_string());
+        s.pending_events.push(RecordingEvent {
+            event_id: id,
+            event_type: EventType::RoundStart,
+            timestamp: timestamp_secs,
+            data: EventData {
+                name: format!("Round {}", round_number),
+                actor: None,
+                target: None,
+                participants: vec![],
+                metadata: EventMetadata { map, extra, ..Default::default() },
+            },
+        });
+    }
+
+    // ─── Post-game processing ─────────────────────────────────────────────────
+
     async fn process_match_details(&self, match_id: &str, details: &MatchDetailsResponse, puuid: &str) {
         let player = details.players.iter().find(|p| p.subject == puuid);
-        let stats = player.and_then(|p| p.stats.as_ref());
         let player_team_id = player.map(|p| p.team_id.as_str()).unwrap_or("");
 
+        let stats = player.and_then(|p| p.stats.as_ref());
         let kda = stats.map(|s| KDA { kills: s.kills, deaths: s.deaths, assists: s.assists });
 
+        let nobody_won = details.teams.iter().all(|t| !t.won);
         let outcome = details.teams.iter()
             .find(|t| t.team_id == player_team_id)
-            .map(|t| if t.won { GameOutcome::Victory } else { GameOutcome::Defeat });
+            .map(|t| {
+                if nobody_won { GameOutcome::Draw }
+                else if t.won { GameOutcome::Victory }
+                else { GameOutcome::Defeat }
+            });
 
         let agent_name: Option<String> = if let Some(p) = player {
             agent_id_to_name(&p.character_id).await
@@ -270,59 +285,195 @@ impl ValorantIntegration {
         flog!("[POST_GAME] map={} kda={:?} outcome={:?}", map_name, kda, outcome);
         log!("📊 Valorant post-game: map={} kda={:?} outcome={:?}", map_name, kda, outcome);
 
+        let mut agent_names: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+        for p in &details.players {
+            if let Some(name) = agent_id_to_name(&p.character_id).await {
+                agent_names.insert(p.subject.clone(), name);
+            }
+        }
+
         let mut s = self.state.write().await;
         s.processed_match_ids.insert(match_id.to_string());
 
-        let mk = |state: &mut InnerState| -> u32 {
-            let id = state.next_event_id;
-            state.next_event_id += 1;
-            id
+        if let Some(rounds) = &details.round_results {
+            let mut ally_score: u32 = 0;
+            let mut enemy_score: u32 = 0;
+
+            for round in rounds {
+                // Derive round-start timestamp: game_time - round_time of any kill in round,
+                // or from the top-level kills array if available.
+                let round_start_ms: u64 = round.player_stats.iter()
+                    .flat_map(|ps| ps.kills.iter())
+                    .find_map(|k| {
+                        if let (Some(gt), Some(rt)) = (k.game_time, k.round_time) {
+                            gt.checked_sub(rt)
+                        } else {
+                            None
+                        }
+                    })
+                    // Fallback: look in the top-level kills array for kills in this round
+                    .or_else(|| {
+                        details.kills.as_deref()?.iter()
+                            .filter(|k| k.round == round.round_num)
+                            .find_map(|k| k.game_time.checked_sub(k.round_time))
+                    })
+                    .unwrap_or(0);
+
+                let id = s.next_id();
+                let mut extra = std::collections::HashMap::new();
+                extra.insert("round".to_string(), (round.round_num + 1).to_string());
+                extra.insert("ally_score".to_string(), ally_score.to_string());
+                extra.insert("enemy_score".to_string(), enemy_score.to_string());
+                extra.insert("winning_team".to_string(), round.winning_team.clone());
+
+                s.pending_events.push(RecordingEvent {
+                    event_id: id,
+                    event_type: EventType::RoundStart,
+                    timestamp: round_start_ms as f64 / 1000.0,
+                    data: EventData {
+                        name: format!("Round {}", round.round_num + 1),
+                        actor: None,
+                        target: None,
+                        participants: vec![],
+                        metadata: EventMetadata {
+                            map: Some(map_name.clone()),
+                            extra,
+                            ..Default::default()
+                        },
+                    },
+                });
+
+                // Update scores for the *next* round
+                if round.winning_team == player_team_id {
+                    ally_score += 1;
+                } else if !round.winning_team.is_empty() {
+                    enemy_score += 1;
+                }
+            }
+        }
+
+        let kills_source: Vec<FlatKill> = if let Some(top_kills) = &details.kills {
+            top_kills.iter().map(|k| FlatKill {
+                game_time_ms: k.game_time,
+                killer: k.killer.clone(),
+                victim: k.victim.clone(),
+                assistants: k.assistants.clone(),
+                weapon: k.finishing_damage.as_ref().map(|d| d.damage_item.clone()),
+            }).collect()
+        } else {
+            // Flatten from roundResults
+            details.round_results.as_deref().unwrap_or(&[]).iter()
+                .flat_map(|r| r.player_stats.iter())
+                .flat_map(|ps| ps.kills.iter().map(|k| FlatKill {
+                    game_time_ms: k.game_time.unwrap_or(0),
+                    killer: k.killer.clone(),
+                    victim: k.victim.clone(),
+                    assistants: k.assistants.clone(),
+                    weapon: k.finishing_damage.as_ref().map(|d| d.damage_item.clone()),
+                }))
+                .collect()
         };
 
-        if let Some(st) = stats {
-            for _ in 0..st.kills {
-                let id = mk(&mut s);
+        flog!("[POST_GAME] Processing {} total kills in match", kills_source.len());
+
+        for kill in &kills_source {
+            let timestamp_secs = kill.game_time_ms as f64 / 1000.0;
+
+            if kill.killer == puuid && kill.victim != puuid {
+                // ── Kill ──
+                let id = s.next_id();
+                let mut extra = std::collections::HashMap::new();
+                if let Some(weapon) = &kill.weapon {
+                    extra.insert("weapon".to_string(), weapon.clone());
+                }
+                let victim_agent = agent_names.get(&kill.victim).cloned();
                 s.pending_events.push(RecordingEvent {
-                    event_id: id, event_type: EventType::Kill, timestamp: 0.0,
+                    event_id: id,
+                    event_type: EventType::Kill,
+                    timestamp: timestamp_secs,
                     data: EventData {
-                        name: "Kill".to_string(), actor: agent_name.clone(), target: None,
+                        name: "Kill".to_string(),
+                        actor: agent_name.clone(),
+                        target: victim_agent,
                         participants: vec![],
-                        metadata: EventMetadata { kda, map: Some(map_name.clone()), ..Default::default() },
+                        metadata: EventMetadata {
+                            kda,
+                            map: Some(map_name.clone()),
+                            extra,
+                            ..Default::default()
+                        },
                     },
                 });
             }
-            for _ in 0..st.deaths {
-                let id = mk(&mut s);
+
+            if kill.victim == puuid {
+                // ── Death ──
+                let id = s.next_id();
+                let mut extra = std::collections::HashMap::new();
+                if let Some(weapon) = &kill.weapon {
+                    extra.insert("weapon".to_string(), weapon.clone());
+                }
+                let killer_agent = agent_names.get(&kill.killer).cloned();
                 s.pending_events.push(RecordingEvent {
-                    event_id: id, event_type: EventType::Death, timestamp: 0.0,
+                    event_id: id,
+                    event_type: EventType::Death,
+                    timestamp: timestamp_secs,
                     data: EventData {
-                        name: "Death".to_string(), actor: None, target: agent_name.clone(),
+                        name: "Death".to_string(),
+                        actor: killer_agent,
+                        target: agent_name.clone(),
                         participants: vec![],
-                        metadata: EventMetadata { kda, map: Some(map_name.clone()), ..Default::default() },
+                        metadata: EventMetadata {
+                            kda,
+                            map: Some(map_name.clone()),
+                            extra,
+                            ..Default::default()
+                        },
                     },
                 });
             }
-            for _ in 0..st.assists {
-                let id = mk(&mut s);
+
+            if kill.assistants.contains(&puuid.to_string()) {
+                // ── Assist ──
+                let id = s.next_id();
+                let victim_agent = agent_names.get(&kill.victim).cloned();
                 s.pending_events.push(RecordingEvent {
-                    event_id: id, event_type: EventType::Assist, timestamp: 0.0,
+                    event_id: id,
+                    event_type: EventType::Assist,
+                    timestamp: timestamp_secs,
                     data: EventData {
-                        name: "Assist".to_string(), actor: agent_name.clone(), target: None,
+                        name: "Assist".to_string(),
+                        actor: agent_name.clone(),
+                        target: victim_agent,
                         participants: vec![],
-                        metadata: EventMetadata { kda, map: Some(map_name.clone()), ..Default::default() },
+                        metadata: EventMetadata {
+                            kda,
+                            map: Some(map_name.clone()),
+                            ..Default::default()
+                        },
                     },
                 });
             }
         }
 
+        // ── Step 3: GameEnd event ────────────────────────────────────────────
+
         {
-            let id = mk(&mut s);
+            let id = s.next_id();
             s.pending_events.push(RecordingEvent {
-                event_id: id, event_type: EventType::GameEnd, timestamp: 0.0,
+                event_id: id,
+                event_type: EventType::GameEnd,
+                timestamp: details.match_info.game_length_millis
+                    .map(|ms| ms as f64 / 1000.0)
+                    .unwrap_or(0.0),
                 data: EventData {
-                    name: "GameEnd".to_string(), actor: None, target: None, participants: vec![],
+                    name: "GameEnd".to_string(),
+                    actor: None,
+                    target: None,
+                    participants: vec![],
                     metadata: EventMetadata {
-                        kda, map: Some(map_name.clone()),
+                        kda,
+                        map: Some(map_name.clone()),
                         team: player.map(|p| p.team_id.clone()),
                         ..Default::default()
                     },
@@ -342,6 +493,14 @@ impl ValorantIntegration {
             score: None,
         });
     }
+}
+
+struct FlatKill {
+    game_time_ms: u64,
+    killer: String,
+    victim: String,
+    assistants: Vec<String>,
+    weapon: Option<String>,
 }
 
 // ─── GameIntegrationTrait ─────────────────────────────────────────────────────

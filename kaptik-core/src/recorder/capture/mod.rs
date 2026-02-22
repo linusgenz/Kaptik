@@ -174,10 +174,10 @@ impl WindowsCaptureRecorder {
     /// Add a game event to the current recording
     pub async fn add_event(&self, mut event: RecordingEvent) {
         if let Some(ref mut data) = *self.current_recording_data.write().await {
-            // Set timestamp relative to recording start
-            if let Some(start_time) = *self.recording_start_time.read().await {
-                let elapsed = start_time.elapsed().as_secs_f64();
-                event.timestamp = elapsed;
+            if event.timestamp == 0.0 {
+                if let Some(start_time) = *self.recording_start_time.read().await {
+                    event.timestamp = start_time.elapsed().as_secs_f64();
+                }
             }
 
             data.add_event(event);
