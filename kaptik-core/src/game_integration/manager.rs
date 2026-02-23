@@ -14,6 +14,7 @@ use crate::game_integration::games::valorant::ValorantIntegration;
 
 type IntegrationMap = HashMap<String, Arc<RwLock<Box<dyn GameIntegrationTrait>>>>;
 type EventCallback = Arc<dyn Fn(RecordingEvent) + Send + Sync>;
+type StopCallback  = Arc<dyn Fn() + Send + Sync>;
 
 pub struct GameIntegrationManager {
     /// Integrations keyed by lower-cased executable name (the `exe_key` of
@@ -30,6 +31,8 @@ pub struct GameIntegrationManager {
     /// Callback invoked for every new [`RecordingEvent`] – wired to the recorder.
     event_callback: Arc<RwLock<Option<EventCallback>>>,
 
+    stop_recording_callback: Arc<RwLock<Option<StopCallback>>>,
+
     /// Most-recently seen [`GameState`] that passes [`GameState::is_meaningful`].
     /// Survives the in-game API shutting down so the recorder can attach metadata
     /// like KDA which is required at the finalization of a recording.
@@ -44,6 +47,7 @@ impl GameIntegrationManager {
             active_id: Arc::new(RwLock::new(None)),
             monitor_task: Arc::new(Mutex::new(None)),
             event_callback: Arc::new(RwLock::new(None)),
+            stop_recording_callback: Arc::new(RwLock::new(None)),
             last_known_state: Arc::new(RwLock::new(None)),
         };
 
@@ -92,6 +96,15 @@ impl GameIntegrationManager {
             integration.write().await.initialize().await?;
             *self.active_id.write().await = Some(id.clone());
 
+            if let Some(cb) = self.stop_recording_callback.read().await.clone() {
+                integration
+                    .read()
+                    .await
+                    .set_stop_recording_callback(cb)
+                    .await;
+                log!("🔗 Stop-recording callback wired into integration: {}", id.display_name);
+            }
+
             log!("🎮 Integration activated: {} ({})", id.display_name, exe_name);
         } else {
             *self.active_id.write().await = None;
@@ -115,6 +128,13 @@ impl GameIntegrationManager {
         F: Fn(RecordingEvent) + Send + Sync + 'static,
     {
         *self.event_callback.write().await = Some(Arc::new(callback));
+    }
+
+    pub async fn set_stop_recording_callback<F>(&self, callback: F)
+    where
+        F: Fn() + Send + Sync + 'static,
+    {
+        *self.stop_recording_callback.write().await = Some(Arc::new(callback));
     }
 
     /// Returns the current [`GameState`] from the active integration, or

@@ -50,5 +50,11 @@ pub trait GameIntegrationTrait: Send + Sync {
         Ok(None)
     }
 
+    /// Register a callback that the integration should invoke when the game
+    /// session has ended and the recording should be stopped.  The default
+    /// implementation is a no-op; integrations that can detect match-end
+    /// without the process closing should override this.
+    async fn set_stop_recording_callback(&self, _cb: std::sync::Arc<dyn Fn() + Send + Sync>) {}
+
     fn as_any(&self) -> &dyn Any;
 }

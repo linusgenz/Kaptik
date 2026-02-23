@@ -88,6 +88,7 @@ impl InnerState {
 pub struct ValorantIntegration {
     client: ValorantClient,
     state: Arc<RwLock<InnerState>>,
+    stop_recording_callback: Arc<RwLock<Option<Arc<dyn Fn() + Send + Sync>>>>,
 }
 
 impl ValorantIntegration {
@@ -95,7 +96,15 @@ impl ValorantIntegration {
         Ok(Self {
             client: ValorantClient::new()?,
             state: Arc::new(RwLock::new(InnerState::default())),
+            stop_recording_callback: Arc::new(tokio::sync::RwLock::new(None)),
         })
+    }
+
+    pub async fn set_stop_recording_callback<F>(&self, cb: F)
+    where
+        F: Fn() + Send + Sync + 'static,
+    {
+        *self.stop_recording_callback.write().await = Some(Arc::new(cb));
     }
 
     /// Returns a cloned session if one is cached, otherwise tries to create
@@ -229,6 +238,12 @@ impl ValorantIntegration {
                 self.process_match_details(&match_id, &details, &session.puuid).await;
             }
             Err(e) => { flog!("[GAME_END] ❌ Match details fetch failed: {}", e); }
+        }
+
+        if let Some(cb) = self.stop_recording_callback.read().await.as_ref() {
+            flog!("[GAME_END] 🛑 Triggering stop-recording callback");
+            log!("🛑 Valorant: triggering automatic recording stop");
+            cb();
         }
     }
 
@@ -564,6 +579,11 @@ impl GameIntegrationTrait for ValorantIntegration {
             return Ok(Some(vec![]));
         }
         Ok(Some(std::mem::take(&mut s.pending_events)))
+    }
+
+
+    async fn set_stop_recording_callback(&self, cb: std::sync::Arc<dyn Fn() + Send + Sync>) {
+        *self.stop_recording_callback.write().await = Some(cb);
     }
 
     fn as_any(&self) -> &dyn Any {

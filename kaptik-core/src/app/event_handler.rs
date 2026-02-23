@@ -62,6 +62,26 @@ async fn wire_event_forwarding(
         })
         .await;
     log!("✅ Game-event → recorder forwarding active");
+
+    {
+        let rec = recorder.clone();
+        let mgr = manager.clone();
+        manager
+            .set_stop_recording_callback(move || {
+                let rec = rec.clone();
+                let mgr = mgr.clone();
+                tokio::spawn(async move {
+                    log!("🛑 Integration-triggered recording stop");
+                    if !rec.is_recording().await {
+                        return;
+                    }
+                    let final_state = resolve_final_state(&mgr).await;
+                    stop_recording_blocking(&rec, final_state).await;
+                });
+            })
+            .await;
+        log!("✅ Integration stop-recording callback wired");
+    }
 }
 
 async fn handle_event(
